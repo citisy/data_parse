@@ -2,7 +2,6 @@
 import cv2
 import numpy as np
 import numbers
-from metrics.object_detection import Overlap
 
 LEFT, RIGHT, TOP, DOWN = 0, 1, 0, 1
 
@@ -98,6 +97,8 @@ class RandomVShift:
         self.shift_class = shift_class
 
     def __call__(self, image, bboxes, classes=None, **kwargs):
+        from metrics.object_detection import Overlap
+
         # check and select bbox
         new_bboxes = np.array(bboxes, dtype=int)
         if classes is not None:
