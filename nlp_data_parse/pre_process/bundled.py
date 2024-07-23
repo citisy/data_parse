@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import re
 from . import spliter, chunker, cleaner, snack, numeralizer, perturbation
 from utils import os_lib
 from typing import List, Dict
@@ -279,6 +280,24 @@ class CLIPTokenizer:
             regex.IGNORECASE,
         )
 
+        self.attention_pattern = re.compile(r"""
+        \\\(|
+        \\\)|
+        \\\[|
+        \\]|
+        \\\\|
+        \\|
+        \(|
+        \[|
+        :\s*([+-]?[.\d]+)\s*\)|
+        \)|
+        ]|
+        [^\\()\[\]:]+|
+        :
+        """, re.X)
+
+        self.break_pattern = re.compile(r"\s*\bBREAK\b\s*", re.S)
+
         self.spliter = spliter.ToSegments(
             sep_pattern=self.sep_pattern,
             is_split_punctuation=False,
@@ -291,6 +310,7 @@ class CLIPTokenizer:
         self.numerizer.make_chars = self.make_chars
         self.sp_id_dict = {k: self.word_dict.get(v) for k, v in self.sp_token_dict.items()}
         self.word_suffix = '</w>'
+        self.comma_token = ','
 
         self.__dict__.update(kwargs)
         self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
@@ -315,7 +335,6 @@ class CLIPTokenizer:
 
     def encode_segments(self, segments):
         segments_ids = self.numerizer.encode(segments)
-
         seq_lens = [len(t) for t in segments_ids]
         segments_ids = snack.align(
             segments_ids, max_seq_len=self.max_seq_len, auto_pad=False,
@@ -328,6 +347,150 @@ class CLIPTokenizer:
             segments_ids=segments_ids,
             seq_lens=seq_lens
         )
+
+    def encode_attention_paragraphs(self, paragraphs):
+        _paragraphs, _weights, idx = [], [], []
+        for i, paragraph in enumerate(paragraphs):
+            for p, weight in self.parse_prompt_attention(paragraph):
+                _paragraphs.append(p)
+                _weights.append(weight)
+                idx.append(i)
+
+        segments = self.spliter.from_paragraphs(_paragraphs)
+        _segments_ids = self.numerizer.encode(segments)
+        _seq_lens = [len(t) for t in _segments_ids]
+
+        s = 0
+        segments_ids, seq_lens, segments_weights = [], [], []
+        tmp_segments_ids, tmp_seq_lens, tmp_weights = [], 0, []
+        for segments_id, seq_len, weight, i in zip(_segments_ids, _seq_lens, _weights, idx):
+            if i == s:
+                tmp_segments_ids += segments_id
+                tmp_seq_lens += seq_len
+                tmp_weights += [weight] * seq_len
+            else:
+                s = i
+                segments_ids.append(tmp_segments_ids)
+                seq_lens.append(tmp_seq_lens)
+                segments_weights.append(tmp_weights)
+                tmp_segments_ids, tmp_seq_lens, tmp_weights = [], 0, []
+
+        if tmp_segments_ids:
+            segments_ids.append(tmp_segments_ids)
+            seq_lens.append(tmp_seq_lens)
+            segments_weights.append(tmp_weights)
+
+        segments_ids = snack.align(
+            segments_ids, max_seq_len=self.max_seq_len, auto_pad=False,
+            start_obj=self.bos_id,
+            end_obj=self.eos_id,
+            pad_obj=self.pad_id,
+        )
+
+        segments_weights = snack.align(
+            segments_weights, max_seq_len=self.max_seq_len, auto_pad=False,
+            start_obj=1.,
+            end_obj=1.,
+            pad_obj=1.,
+        )
+
+        r = dict(
+            segments_ids=segments_ids,
+            segments_weights=segments_weights,
+            seq_lens=seq_lens
+        )
+        return r
+
+    def parse_prompt_attention(self, paragraph):
+        """copy from https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/prompt_parser.py
+        Parses a string with attention tokens and returns a list of pairs: text and its associated weight.
+        Accepted tokens are:
+          (abc) - increases attention to abc by a multiplier of 1.1
+          (abc:3.12) - increases attention to abc by a multiplier of 3.12
+          [abc] - decreases attention to abc by a multiplier of 1.1
+          \( - literal character '('
+          \[ - literal character '['
+          \) - literal character ')'
+          \] - literal character ']'
+          \\ - literal character '\'
+          anything else - just text
+
+        >>> tokenizer = CLIPTokenizer(...)
+        >>> tokenizer.parse_prompt_attention('normal text')
+        [['normal text', 1.0]]
+        >>> tokenizer.parse_prompt_attention('an (important) word')
+        [['an ', 1.0], ['important', 1.1], [' word', 1.0]]
+        >>> tokenizer.parse_prompt_attention('(unbalanced')
+        [['unbalanced', 1.1]]
+        >>> tokenizer.parse_prompt_attention('\(literal\]')
+        [['(literal]', 1.0]]
+        >>> tokenizer.parse_prompt_attention('(unnecessary)(parens)')
+        [['unnecessaryparens', 1.1]]
+        >>> tokenizer.parse_prompt_attention('a (((house:1.3)) [on] a (hill:0.5), sun, (((sky))).')
+        [['a ', 1.0],
+         ['house', 1.5730000000000004],
+         [' ', 1.1],
+         ['on', 1.0],
+         [' a ', 1.1],
+         ['hill', 0.55],
+         [', sun, ', 1.1],
+         ['sky', 1.4641000000000006],
+         ['.', 1.1]]
+        """
+
+        res = []
+        round_brackets = []
+        square_brackets = []
+
+        round_bracket_multiplier = 1.1
+        square_bracket_multiplier = 1 / 1.1
+
+        def multiply_range(start_position, multiplier):
+            for p in range(start_position, len(res)):
+                res[p][1] *= multiplier
+
+        for m in self.attention_pattern.finditer(paragraph):
+            paragraph = m.group(0)
+            weight = m.group(1)
+
+            if paragraph.startswith('\\'):
+                res.append([paragraph[1:], 1.0])
+            elif paragraph == '(':
+                round_brackets.append(len(res))
+            elif paragraph == '[':
+                square_brackets.append(len(res))
+            elif weight is not None and round_brackets:
+                multiply_range(round_brackets.pop(), float(weight))
+            elif paragraph == ')' and round_brackets:
+                multiply_range(round_brackets.pop(), round_bracket_multiplier)
+            elif paragraph == ']' and square_brackets:
+                multiply_range(square_brackets.pop(), square_bracket_multiplier)
+            else:
+                parts = re.split(self.break_pattern, paragraph)
+                for i, part in enumerate(parts):
+                    if i > 0:
+                        res.append(["BREAK", -1])
+                    res.append([part, 1.0])
+
+        for pos in round_brackets:
+            multiply_range(pos, round_bracket_multiplier)
+
+        for pos in square_brackets:
+            multiply_range(pos, square_bracket_multiplier)
+
+        if len(res) == 0:
+            res = [["", 1.0]]
+
+        # merge runs of identical weights
+        i = 0
+        while i + 1 < len(res):
+            if res[i][1] == res[i + 1][1]:
+                res[i][0] += res[i + 1][0]
+                res.pop(i + 1)
+            else:
+                i += 1
+
+        return res
 
 
 class LlamaTokenizer:
