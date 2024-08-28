@@ -486,7 +486,7 @@ class DataVisualizer:
             for r in rets:
                 images.append(self.visual_one_image(r, **visual_kwargs))
 
-                if 'pix_image' in r:
+                if 'pix_image' in r and r['pix_image'] is not None:
                     images.append(self.visual_one_image({'image': r['pix_image']}, **visual_kwargs))
 
                 if '_id' in r:
