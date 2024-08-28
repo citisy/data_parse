@@ -71,19 +71,19 @@ class Saver(DataSaver):
 
     """
 
-    def mkdirs(self, set_types, task='', pix_task='', **kwargs):
+    def mkdirs(self, set_types, task='original', pix_task='pixels', **kwargs):
         os_lib.mk_dir(f'{self.data_dir}/{task}')
         os_lib.mk_dir(f'{self.data_dir}/{pix_task}')
 
-    def _call(self, iter_data, image_type=DataRegister.PATH, task='', pix_task='', **kwargs):
-        for ret in iter_data:
-            ret = self.convert_func(ret)
+    def _call(self, iter_data, **gen_kwargs):
+        return self.gen_data(iter_data, **gen_kwargs)
 
-            image = ret['image']
-            pix_image = ret['pix_image']
-            _id = ret['_id']
+    def parse_ret(self, ret, image_type=DataRegister.PATH, task='original', pix_task='pixels', **kwargs):
+        image = ret['image']
+        pix_image = ret['pix_image']
+        _id = ret['_id']
 
-            image_path = f'{self.data_dir}/{task}/{_id}'
-            pix_image_path = image_path.replace(task, pix_task)
-            save_image(image, image_path, image_type)
-            save_image(pix_image, pix_image_path, image_type)
+        image_path = f'{self.data_dir}/{task}/{_id}'
+        pix_image_path = image_path.replace(task, pix_task)
+        save_image(image, image_path, image_type)
+        save_image(pix_image, pix_image_path, image_type)
