@@ -58,10 +58,10 @@ class Proportion:
             dst = (dst, dst)
         dst_w, dst_h = dst
         p = self.get_params(dst_w, dst_h, w, h)
-        return {self.name: dict(p=p)}
+        return {self.name: dict(p=p, w=w, h=h)}
 
     def parse_add_params(self, ret):
-        return ret[self.name]['p']
+        return ret[self.name]['p'], ret[self.name]['w'], ret[self.name]['h']
 
     def __call__(self, image, dst, bboxes=None, **kwargs):
         h, w = image.shape[:2]
@@ -74,21 +74,21 @@ class Proportion:
         }
 
     def apply_image(self, image, ret):
-        p = self.parse_add_params(ret)
+        p, _, _ = self.parse_add_params(ret)
         return cv2.resize(image, None, fx=p, fy=p, interpolation=self.interpolation)
 
     def apply_bboxes(self, bboxes, ret):
-        p = self.parse_add_params(ret)
+        p, _, _ = self.parse_add_params(ret)
         if bboxes is not None:
             bboxes = np.array(bboxes, dtype=float) * p
             bboxes = bboxes.astype(int)
         return bboxes
 
     def restore(self, ret):
-        p = self.parse_add_params(ret)
+        p, w, h = self.parse_add_params(ret)
         if 'image' in ret and ret['image'] is not None:
             image = ret['image']
-            image = cv2.resize(image, None, fx=1 / p, fy=1 / p, interpolation=self.interpolation)
+            image = cv2.resize(image, (w, h), interpolation=self.interpolation)
             ret['image'] = image
 
         if 'bboxes' in ret and ret['bboxes'] is not None:
