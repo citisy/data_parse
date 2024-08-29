@@ -60,9 +60,9 @@ class Saver(DataSaver):
 
     image_suffix = 'png'
 
-    def mkdirs(self, set_types, task='images', pix_task='texts', **kwargs):
+    def mkdirs(self, set_types, task='images', text_task='texts', **kwargs):
         os_lib.mk_dir(f'{self.data_dir}/{task}')
-        os_lib.mk_dir(f'{self.data_dir}/{pix_task}')
+        os_lib.mk_dir(f'{self.data_dir}/{text_task}')
 
     def _call(self, iter_data, **gen_kwargs):
         return self.gen_data(iter_data, **gen_kwargs)

@@ -12,7 +12,7 @@ class Loader(DataLoader):
         .
         ├── base            # as train data, 378 items
         │   ├── xxx.jpg		# original image
-        │   ├── xxx.png     # pixels image with labels
+        │   ├── xxx.png     # mask image with labels
         │   ├── xxx.xml	    # labels
         │   └── ...
         └── extended        # as test data, 228 items
@@ -62,8 +62,8 @@ class Loader(DataLoader):
         image_path = os.path.abspath(fp)
         image = get_image(image_path, image_type)
 
-        pix_image_path = image_path.replace('.jpg', '.png')
-        pix_image = get_image(pix_image_path, image_type)
+        label_mask_path = image_path.replace('.jpg', '.png')
+        label_mask = get_image(label_mask_path, image_type)
 
         label_path = image_path.replace('.jpg', '.xml')
         # get wrong directly with using raw xml file
@@ -87,7 +87,7 @@ class Loader(DataLoader):
         return dict(
             _id=fp.name,
             image=image,
-            pix_image=pix_image,
+            label_mask=label_mask,
             bboxes=bboxes,
             classes=classes,
         )

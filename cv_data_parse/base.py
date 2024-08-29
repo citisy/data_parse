@@ -78,7 +78,7 @@ class ImgSegDict:
 
     # if `image_type = DataRegister.PATH`,, return a string
     # if `image_type = DataRegister.ARRAY`,, return a np.ndarray from cv2.read()
-    pix_image: str or np.ndarray
+    label_mask: str or np.ndarray
 
 
 def fake_func(x):
@@ -457,7 +457,7 @@ class DataVisualizer:
                 each dict must have the of '_id', 'image' and at lease
                     - _id (str): the name to save the image
                     - image (np.ndarray): must have the same shape
-                    - pix_image:
+                    - label_mask:
                     - bboxes:
                     - classes:
                     - confs:
@@ -486,8 +486,8 @@ class DataVisualizer:
             for r in rets:
                 images.append(self.visual_one_image(r, **visual_kwargs))
 
-                if 'pix_image' in r and r['pix_image'] is not None:
-                    images.append(self.visual_one_image({'image': r['pix_image']}, **visual_kwargs))
+                if 'label_mask' in r and r['label_mask'] is not None:
+                    images.append(self.visual_one_image({'image': r['label_mask']}, **visual_kwargs))
 
                 if '_id' in r:
                     _id = r['_id']

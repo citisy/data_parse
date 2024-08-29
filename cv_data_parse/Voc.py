@@ -15,7 +15,7 @@ class Loader(DataLoader):
 
     Data structure(bass on VOC2012):
         .
-        ├── Annotations               # xml files, included bboxeses and lables
+        ├── Annotations               # xml files, included bboxes and labels
         ├── ImageSets                 # subclass sets
         │   ├── Action                # human actions sets
         │   ├── Layout                # human layout sets
@@ -104,11 +104,11 @@ class Loader(DataLoader):
             gen_func = f.read().strip().split('\n')
 
         for ret in self.gen_data(gen_func, **kwargs):
-            # note, pix_image with suffix `png` not `jpg`
-            pix_image_path = os.path.abspath(f'{self.data_dir}/{task}/{Path(ret["_id"]).stem}.png')
-            pix_image = get_image(pix_image_path, image_type)
+            # note, label_mask with suffix `png` not `jpg`
+            label_mask_path = os.path.abspath(f'{self.data_dir}/{task}/{Path(ret["_id"]).stem}.png')
+            label_mask = get_image(label_mask_path, image_type)
 
-            ret['pix_image'] = pix_image
+            ret['label_mask'] = label_mask
             yield ret
 
     def get_ret(self, _id, image_type=DataRegister.PATH, **kwargs):
