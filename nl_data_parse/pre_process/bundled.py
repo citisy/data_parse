@@ -364,21 +364,20 @@ class CLIPTokenizer:
         segments_ids, seq_lens, segments_weights = [], [], []
         tmp_segments_ids, tmp_seq_lens, tmp_weights = [], 0, []
         for segments_id, seq_len, weight, i in zip(_segments_ids, _seq_lens, _weights, idx):
-            if i == s:
-                tmp_segments_ids += segments_id
-                tmp_seq_lens += seq_len
-                tmp_weights += [weight] * seq_len
-            else:
-                s = i
+            if i != s:
                 segments_ids.append(tmp_segments_ids)
                 seq_lens.append(tmp_seq_lens)
                 segments_weights.append(tmp_weights)
                 tmp_segments_ids, tmp_seq_lens, tmp_weights = [], 0, []
+                s = i
 
-        if tmp_segments_ids:
-            segments_ids.append(tmp_segments_ids)
-            seq_lens.append(tmp_seq_lens)
-            segments_weights.append(tmp_weights)
+            tmp_segments_ids += segments_id
+            tmp_seq_lens += seq_len
+            tmp_weights += [weight] * seq_len
+
+        segments_ids.append(tmp_segments_ids)
+        seq_lens.append(tmp_seq_lens)
+        segments_weights.append(tmp_weights)
 
         segments_ids = snack.align(
             segments_ids, max_seq_len=self.max_seq_len, auto_pad=False,
