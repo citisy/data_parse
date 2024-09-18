@@ -1,8 +1,9 @@
+import os
 from pathlib import Path
 
-from .base import DataLoader, DataRegister, get_image
-import os
 from utils import os_lib
+from .base import DataLoader, DataRegister, get_image
+
 
 class Loader(DataLoader):
     """https://github.com/kohya-ss/sd-scripts.git
@@ -27,10 +28,11 @@ class Loader(DataLoader):
     """
 
     txt_suffix = '.txt'
+    default_data_type = DataRegister.MIX
 
     def _call(self, task='original', **gen_kwargs):
         def gen_func():
-            for fp1 in Path(self.data_dir).glob(task):
+            for fp1 in Path(f'{self.data_dir}/{task}').glob('*'):
                 # repeat, subtask = fp1.name.split('_', 1)
                 for fp2 in fp1.glob('*'):
                     if fp2.suffix in self.image_suffixes:
@@ -42,7 +44,8 @@ class Loader(DataLoader):
         image_path = os.path.abspath(fp)
         image = get_image(image_path, image_type)
 
-        txt_path = image_path.with_suffix(self.txt_suffix)
+        txt_path = fp.with_suffix(self.txt_suffix)
+        txt_path = os.path.abspath(txt_path)
         text = os_lib.loader.load_txt(txt_path, split_line=False)
 
         return dict(
