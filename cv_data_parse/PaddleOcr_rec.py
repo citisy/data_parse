@@ -26,7 +26,7 @@ class Loader(DataLoader):
     """
 
     default_set_type = [DataRegister.TRAIN, DataRegister.TEST]
-    image_suffix = 'png'
+    image_suffix = '.png'
 
     def _call(self, set_type=DataRegister.TRAIN, set_task='', label_dir='labels', **kwargs):
         """See Also `cv_data_parse.base.DataLoader._call`

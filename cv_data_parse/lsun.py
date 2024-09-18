@@ -9,14 +9,14 @@ class Loader(DataLoader):
 
     Data structure:
         .
-        ├── [task]_train_lmdb   # train data, can refer to http://dl.yf.io/lsun/categories.txt to get the task
+        ├── [task]_train_lmdb   # train data, can get the task from http://dl.yf.io/lsun/categories.txt
         │   ├── data.lmdb
         │   └── lock.lmdb
         ├── [task]_val_lmdb     # val data
         │   ├── data.lmdb
         │   └── lock.lmdb
         ├── ...
-        ├── [task]              # mix dataset, refer to http://dl.yf.io/lsun/objects/ to get task
+        ├── [task]              # mix dataset, can get the task from http://dl.yf.io/lsun/objects/
         │   ├── data.lmdb
         │   └── lock.lmdb
         └── ...
@@ -70,6 +70,6 @@ class Loader(DataLoader):
         image = cv2.imdecode(np.fromstring(val, dtype=np.uint8), 1)
 
         return dict(
-            _id=f'{key.decode("utf8")}.{self.image_suffix}',
+            _id=f'{key.decode("utf8")}{self.image_suffix}',
             image=image,
         )

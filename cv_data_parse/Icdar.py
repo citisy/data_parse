@@ -48,7 +48,7 @@ class Icdar2015(DataLoader):
             vis_image = ImageVisualize.text(vis_image, segmentations, transcriptions)
     """
     default_set_type = [DataRegister.TRAIN, DataRegister.TEST]
-    image_suffix = 'jpg'
+    image_suffix = '.jpg'
 
     def _call(self, train_task='1', **kwargs):
         """See Also `cv_data_parse.base.DataLoader._call`
@@ -102,7 +102,7 @@ class Icdar2015(DataLoader):
         pass
 
     def get_ret(self, fp, image_type=DataRegister.PATH, image_dir='', **kwargs) -> dict:
-        image_path = os.path.abspath(f'{self.data_dir}/{image_dir}/{fp.stem.replace("gt_", "")}.{self.image_suffix}')
+        image_path = os.path.abspath(f'{self.data_dir}/{image_dir}/{fp.stem.replace("gt_", "")}{self.image_suffix}')
         image = get_image(image_path, image_type)
 
         with open(fp, 'r', encoding='utf8') as f:

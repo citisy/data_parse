@@ -64,4 +64,4 @@ class Loader(DataLoader):
 
     dataset_info = info
 
-    image_suffix = 'bmp'
+    image_suffix = '.bmp'

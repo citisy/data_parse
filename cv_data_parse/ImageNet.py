@@ -38,7 +38,7 @@ class Loader(DataLoader):
             _class = r['_class']
     """
     default_set_type = [DataRegister.TRAIN, DataRegister.VAL]
-    image_suffix = 'JPEG'
+    image_suffix = '.JPEG'
 
     def __init__(self, data_dir):
         super().__init__(data_dir)
@@ -79,13 +79,13 @@ class Loader(DataLoader):
         if wnid:
             if isinstance(wnid, str):
                 _class = self.wnid.index(wnid)
-                for img_fp in (image_root_dir / Path(wnid)).glob(f'*.{self.image_suffix}'):
+                for img_fp in (image_root_dir / Path(wnid)).glob(f'*{self.image_suffix}'):
                     img_list.append(img_fp)
                     classes.append(_class)
             else:
                 for _id in wnid:
                     _class = self.wnid.index(_id)
-                    for img_fp in (image_root_dir / Path(_id)).glob(f'*.{self.image_suffix}'):
+                    for img_fp in (image_root_dir / Path(_id)).glob(f'*{self.image_suffix}'):
                         img_list.append(img_fp)
                         classes.append(_class)
 
@@ -95,7 +95,7 @@ class Loader(DataLoader):
                     continue
 
                 _class = self.wnid.index(fp.name)
-                for img_fp in fp.glob(f'*.{self.image_suffix}'):
+                for img_fp in fp.glob(f'*{self.image_suffix}'):
                     img_list.append(img_fp)
                     classes.append(_class)
 
@@ -112,7 +112,7 @@ class Loader(DataLoader):
 
         def gen_func():
             for i, _class in enumerate(_classes):
-                image_path = os.path.abspath(f'{self.data_dir}/ILSVRC2012_img_val/ILSVRC2012_val_{i + 1:08d}.{self.image_suffix}')
+                image_path = os.path.abspath(f'{self.data_dir}/ILSVRC2012_img_val/ILSVRC2012_val_{i + 1:08d}{self.image_suffix}')
                 yield image_path, int(_class) - 1
 
         return self.gen_data(gen_func(), **kwargs)

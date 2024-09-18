@@ -67,7 +67,7 @@ class Loader(DataLoader):
 
     """
 
-    image_suffix = 'png'
+    image_suffix = '.png'
 
     def _call(self, set_type=DataRegister.TRAIN, **gen_kwargs):
         """
@@ -102,7 +102,7 @@ class Loader(DataLoader):
         Returns:
 
         """
-        gen_func = Path(f'{self.data_dir}/images/{task}').glob(f'*.{self.image_suffix}')
+        gen_func = Path(f'{self.data_dir}/images/{task}').glob(f'*{self.image_suffix}')
         return self.gen_data(gen_func, **gen_kwargs)
 
     def load_set(self, set_type=DataRegister.TRAIN, set_task='', sub_dir='image_sets', **gen_kwargs):
@@ -140,7 +140,7 @@ class Loader(DataLoader):
         image_path = os.path.abspath(fp)
         img_fp = Path(image_path)
         image = get_image(image_path, image_type)
-        label_path = image_path.replace('images', 'labels').replace(f'.{self.image_suffix}', '.txt')
+        label_path = image_path.replace('images', 'labels').replace(self.image_suffix, '.txt')
 
         if not os.path.exists(label_path):
             self.stdout_method(f'{label_path} not exist!')
@@ -163,7 +163,7 @@ class Loader(DataLoader):
 
 
 class LoaderFull(DataLoader):
-    image_suffix = 'png'
+    image_suffix = '.png'
 
     def _call(self, task='', sub_dir='full_labels', **gen_kwargs):
         """format of saved label txt like (class, x1, y1, x2, y2, conf, w, h)
@@ -318,8 +318,8 @@ class SaverFull(DataSaver):
 
 
 class Generator(DatasetGenerator):
-    image_suffix = 'png'
-    label_suffix = 'txt'
+    image_suffix = '.png'
+    label_suffix = '.txt'
 
     def gen_sets(self, label_dirs=(), image_dirs=(), save_dir='', set_task='',
                  id_distinguish='', id_sort=False,
@@ -381,7 +381,7 @@ class Generator(DatasetGenerator):
 
         if label_dirs:
             for label_dir in label_dirs:
-                tmp = list(Path(label_dir).glob(f'*.{self.label_suffix}'))
+                tmp = list(Path(label_dir).glob(f'*{self.label_suffix}'))
                 tmp = [x for x in tmp if self.filter_func(x)]
 
                 if id_distinguish:
@@ -392,7 +392,7 @@ class Generator(DatasetGenerator):
 
         else:
             for image_dir in image_dirs:
-                tmp = list(Path(image_dir).glob(f'*.{self.image_suffix}'))
+                tmp = list(Path(image_dir).glob(f'*{self.image_suffix}'))
                 tmp = [x for x in tmp if self.filter_func(x)]
 
                 if id_distinguish:

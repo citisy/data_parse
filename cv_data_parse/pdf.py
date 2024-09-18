@@ -35,8 +35,8 @@ class Loader(DataLoader):
             vis_image = ImageVisualize.box(vis_image, segmentations)
             vis_image = ImageVisualize.text(vis_image, segmentations, transcriptions)
     """
-    image_suffix = 'png'
-    pdf_suffix = 'pdf'
+    image_suffix = '.png'
+    pdf_suffix = '.pdf'
     loader = os_lib.Loader(verbose=False)
 
     def _call(self, task='', **kwargs):
@@ -55,7 +55,7 @@ class Loader(DataLoader):
                 segmentations_: List[np.ndarray] of chars
                 transcriptions: List[str]
         """
-        gen_func = Path(f'{self.data_dir}/pdfs/{task}').glob(f'*.{self.pdf_suffix}')
+        gen_func = Path(f'{self.data_dir}/pdfs/{task}').glob(f'*{self.pdf_suffix}')
         return self.gen_data(gen_func, **kwargs)
 
     def get_ret(self, fp, **kwargs):

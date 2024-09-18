@@ -29,7 +29,7 @@ class Loader(DataLoader):
     default_set_type = [DataRegister.MIX]
 
     def _call(self, task='original', **kwargs):
-        gen_func = Path(f'{self.data_dir}/{task}').glob(f'*.{self.image_suffix}')
+        gen_func = os_lib.find_all_suffixes_files(f'{self.data_dir}/{task}', self.image_suffixes)
         return self.gen_data(gen_func, task=task, **kwargs)
 
     def get_ret(self, fp, image_type=DataRegister.PATH, task='original', mask_task='original_masks', **kwargs) -> dict:

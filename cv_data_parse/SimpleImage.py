@@ -11,7 +11,7 @@ class Loader(DataLoader):
     loader = os_lib.Loader(verbose=False)
 
     def _call(self, task='original', **gen_kwargs):
-        gen_func = Path(f'{self.data_dir}/{task}').glob(f'*.{self.image_suffix}')
+        gen_func = os_lib.find_all_suffixes_files(f'{self.data_dir}/{task}', self.image_suffixes)
         return self.gen_data(gen_func, task=task, **gen_kwargs)
 
     def get_ret(self, fp, image_type=DataRegister.PATH, return_label=False, **kwargs) -> dict:
@@ -20,7 +20,7 @@ class Loader(DataLoader):
 
         label = {}
         if return_label:
-            label_path = str(fp).replace(self.image_suffix, 'json')
+            label_path = str(fp).replace(self.image_suffix, '.json')
             label = self.loader.load_json(label_path)
 
         return dict(
@@ -44,7 +44,7 @@ class ZipLoader(DataLoader):
 
         label = {}
         if return_label:
-            label_path = str(obj).replace(self.image_suffix, 'json')
+            label_path = str(obj).replace(self.image_suffix, '.json')
             label = json.loads(str(zip_file.open(label_path).read()))
 
         return dict(

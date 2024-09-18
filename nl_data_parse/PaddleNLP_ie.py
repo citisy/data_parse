@@ -25,7 +25,7 @@ class Loader(DataLoader):
     """
 
     default_set_type = [DataRegister.TRAIN, DataRegister.DEV, DataRegister.TEST]
-    image_suffix = 'png'
+    image_suffix = '.png'
 
     def _call(self, set_type, image_type=DataRegister.BASE64, set_task='', **kwargs):
         """See Also `data_parse.cv_data_parse.base.DataLoader._call`
@@ -59,7 +59,7 @@ class Loader(DataLoader):
                 # bboxes *= np.array([4, 3, 4, 3])
 
                 yield dict(
-                    _id=f'{i}.{self.image_suffix}',
+                    _id=f'{i}{self.image_suffix}',
                     image=image,
                     bboxes=bboxes,
                     text=text,

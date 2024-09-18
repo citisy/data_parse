@@ -94,7 +94,8 @@ class DataLoader:
     default_set_type = [DataRegister.TRAIN, DataRegister.TEST]
     default_data_type = DataRegister.FULL
     default_image_type = DataRegister.PATH
-    image_suffix = 'png'
+    image_suffix = '.png'
+    image_suffixes = os_lib.suffixes_dict['img']
     classes = []
     dataset_info: dict
 
@@ -331,7 +332,7 @@ class DataSaver:
 
 class DatasetGenerator:
     """generate datasets for training, testing and valuating"""
-    image_suffix = 'jpg'
+    image_suffix = '.jpg'
 
     def __init__(self, data_dir=None, image_dir=None, label_dir=None, verbose=True, stdout_method=print):
         self.data_dir = data_dir

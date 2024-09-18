@@ -11,7 +11,7 @@ info = [
         'fp': 'Img/img_celeba.7z',
         'md5': 'b6cd7e93bc7a96c2dc33f819aa3ac651',
         'len': 202602,
-        'image_suffix': 'jpg'
+        'image_suffix': '.jpg'
     },
 
     {
@@ -19,7 +19,7 @@ info = [
         'fp': 'Img/img_align_celeba.zip',
         'md5': '00d2c5bc6d35e252742224ab0c1e8fcb',
         'len': 202602,
-        'image_suffix': 'jpg'
+        'image_suffix': '.jpg'
     },
 
     {
@@ -27,7 +27,7 @@ info = [
         'fp': 'Img/img_align_celeba_png.7z',
         'md5': '20523b3fcc187370f4eb06c2539c00f9',
         'len': 202602,
-        'image_suffix': 'png'
+        'image_suffix': '.png'
     },
 
     {
@@ -109,7 +109,7 @@ class Loader(DataLoader):
         'crop': 'img_align_celeba_png'
     }
 
-    image_suffix = 'png'
+    image_suffix = '.png'
 
     attr_classes = None
     landmarks_classes = None
@@ -163,7 +163,7 @@ class Loader(DataLoader):
         _id, _data_type = line.split(' ')
 
         if img_task == 'crop':
-            image_path = os.path.abspath(f'{self.data_dir}/Img/{self.img_task_dict[img_task]}/{Path(_id).stem}.{self.image_suffix}')
+            image_path = os.path.abspath(f'{self.data_dir}/Img/{self.img_task_dict[img_task]}/{Path(_id).stem}{self.image_suffix}')
         else:
             image_path = os.path.abspath(f'{self.data_dir}/Img/{self.img_task_dict[img_task]}/{_id}')
 
@@ -226,7 +226,7 @@ class ZipLoader(Loader):
         _id, _data_type = line.split(' ')
 
         if img_task == 'crop':
-            p = f'{self.img_task_dict[img_task]}/{Path(_id).stem}.{self.image_suffix}'
+            p = f'{self.img_task_dict[img_task]}/{Path(_id).stem}{self.image_suffix}'
         else:
             p = f'{self.img_task_dict[img_task]}/{_id}'
 

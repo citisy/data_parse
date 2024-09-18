@@ -34,7 +34,7 @@ class Cifar10Loader(DataLoader):
             _class = r['_class']
     """
     default_image_type = DataRegister.ARRAY
-    image_suffix = 'png'
+    image_suffix = '.png'
     classes = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 
     def _call(self, set_type=DataRegister.TRAIN, image_type=DataRegister.PATH, **kwargs):

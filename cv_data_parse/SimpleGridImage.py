@@ -11,7 +11,7 @@ class Loader(DataLoader):
     loader = os_lib.Loader(verbose=False)
 
     def _call(self, task='', **kwargs):
-        gen_func = Path(f'{self.data_dir}/{task}').glob(f'*.{self.image_suffix}')
+        gen_func = os_lib.find_all_suffixes_files(f'{self.data_dir}/{task}', self.image_suffixes)
         return self.gen_data(gen_func, **kwargs)
 
     def get_ret(self, fp, size=None, **kwargs) -> List[dict]:

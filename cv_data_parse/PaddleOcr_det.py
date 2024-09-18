@@ -42,7 +42,7 @@ class Loader(DataLoader):
     """
 
     default_set_type = [DataRegister.TRAIN, DataRegister.TEST]
-    image_suffix = 'png'
+    image_suffix = '.png'
 
     def _call(self, set_type=DataRegister.TRAIN, set_task='', label_dir='labels', **kwargs):
         """See Also `cv_data_parse.base.DataLoader._call`
@@ -185,8 +185,8 @@ class Saver(DataSaver):
 
 
 class Generator(DatasetGenerator):
-    image_suffix = 'png'
-    label_suffix = 'txt'
+    image_suffix = '.png'
+    label_suffix = '.txt'
 
     def gen_sets(
             self, label_files=(), save_dir='', set_task='',
@@ -238,7 +238,7 @@ class Generator(DatasetGenerator):
         os_lib.mk_dir(save_dir)
 
         if not label_files:
-            label_files = [i for i in Path(self.label_dir).glob(f'*.{self.label_suffix}')]
+            label_files = [i for i in Path(self.label_dir).glob(f'*{self.label_suffix}')]
 
         data = []
         idx = []

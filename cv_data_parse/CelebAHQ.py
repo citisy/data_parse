@@ -19,7 +19,7 @@ class Loader(DataLoader):
         │   └── [i]
         └── CelebA-HQ-img
     """
-    image_suffix = 'jpg'
+    image_suffix = '.jpg'
 
     def _call(self, **gen_kwargs):
         gen_func = Path(f'{self.data_dir}/CelebA-HQ-img').glob(f'*{self.image_suffix}')

@@ -43,7 +43,7 @@ class Loader(DataLoader):
 
     """
 
-    image_suffix = 'png'
+    image_suffix = '.png'
 
     def _call(self, set_type=DataRegister.TRAIN, **kwargs):
         """See Also `cv_data_parse.base.DataLoader._call`
@@ -88,7 +88,7 @@ class Loader(DataLoader):
         segmentation = np.array(segmentation)
 
         yield dict(
-            _id=fp.stem + f'.{self.image_suffix}',
+            _id=f'{fp.stem}{self.image_suffix}',
             image=image,
             segmentation=segmentation
         )

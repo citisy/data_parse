@@ -187,7 +187,7 @@ class Loader(DataLoader):
             x = x.reshape(28, 28)
             x = np.expand_dims(x, axis=-1)
             yield dict(
-                _id=f'{i}.{self.image_suffix}',
+                _id=f'{i}{self.image_suffix}',
                 image=x,
                 size=x.shape,
                 _class=y,

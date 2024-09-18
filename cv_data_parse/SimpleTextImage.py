@@ -27,10 +27,9 @@ class Loader(DataLoader):
 
     """
     default_set_type = [DataRegister.MIX]
-    image_suffix = '*'
 
     def _call(self, task='images', **kwargs):
-        gen_func = Path(f'{self.data_dir}/{task}').glob(f'*.{self.image_suffix}')
+        gen_func = os_lib.find_all_suffixes_files(f'{self.data_dir}/{task}', self.image_suffixes)
         return self.gen_data(gen_func, task=task, **kwargs)
 
     def get_ret(self, fp, image_type=DataRegister.PATH, task='images', text_task='texts', **kwargs) -> dict:
@@ -58,7 +57,7 @@ class Saver(DataSaver):
 
     """
 
-    image_suffix = 'png'
+    image_suffix = '.png'
 
     def mkdirs(self, set_types, task='images', text_task='texts', **kwargs):
         os_lib.mk_dir(f'{self.data_dir}/{task}')

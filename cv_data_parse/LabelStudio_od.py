@@ -19,7 +19,7 @@ class Loader(DataLoader):
 
     """
 
-    image_suffix = 'png'
+    image_suffix = '.png'
     classes = []
 
     def _call(self, image_type=DataRegister.ARRAY, set_task='label_studio', **kwargs):

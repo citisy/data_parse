@@ -50,7 +50,7 @@ class Loader(DataLoader):
                "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant",
                "sheep", "sofa", "train", "tvmonitor"]
 
-    image_suffix = 'jpg'
+    image_suffix = '.jpg'
 
     def _call(self, set_task=DET, task=None, **kwargs):
         """See Also `cv_data_parse.base.DataLoader._call`
@@ -116,7 +116,7 @@ class Loader(DataLoader):
         tree = ET.parse(xml_file)
         root = tree.getroot()
 
-        image_path = os.path.abspath(f'{self.data_dir}/JPEGImages/{_id}.{self.image_suffix}')
+        image_path = os.path.abspath(f'{self.data_dir}/JPEGImages/{_id}{self.image_suffix}')
         image = get_image(image_path, image_type)
 
         elem = root.find('size')
@@ -137,7 +137,7 @@ class Loader(DataLoader):
         classes = np.array(classes)
 
         return dict(
-            _id=f'{_id}.{self.image_suffix}',
+            _id=f'{_id}{self.image_suffix}',
             image=image,
             size=size,
             bboxes=bboxes,
