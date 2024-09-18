@@ -2,7 +2,6 @@
 import cv2
 import numpy as np
 from . import Apply, geometry
-from utils.configs import merge_dict
 
 fill_mode = [
     cv2.BORDER_CONSTANT,
