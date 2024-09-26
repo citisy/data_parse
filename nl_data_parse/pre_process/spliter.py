@@ -76,11 +76,12 @@ class ToSegment:
         """
 
         Args:
-            sep: split seq symbol
-            sep_pattern (str or re.Pattern): re pattern seq
-            is_split_punctuation:
-            is_word_piece:
-            vocab: for `word_piece`
+            sep: split seq symbol, for `shallow_split()`
+            sep_pattern (str or re.Pattern): re pattern seq, not work while `sep` is set, for `shallow_split()`
+            sp_tokens: for `from_paragraph_with_sp_tokens()`
+            is_split_punctuation: for `deep_split()`
+            is_word_piece: for `deep_split()`
+            vocab: for `from_paragraph_with_word_piece()`
         """
         sp_pattern = []
         for s in sp_tokens:
@@ -121,22 +122,40 @@ class ToSegment:
         return segment
 
     def from_paragraph_with_sp_tokens(self, paragraph):
-        i = 0
+        """
+        >>> text = 'hello [MASK]!'
+        >>> ToSegment(sp_tokens=['[MASK]']).from_paragraph_with_sp_tokens(text)
+        ['hello', '[MASK]', '!']
+        """
         segment = []
-        while i < len(paragraph):
-            r = self.sp_pattern.search(paragraph[i:])
+        while True:
+            r = self.sp_pattern.search(paragraph)
             if r:
                 span = r.span()
-                segment.append(paragraph[i: span[0]])
+                if span[0] == span[1]:
+                    break
+                segment.append(paragraph[: span[0]])
                 segment.append(paragraph[span[0]: span[1]])
-                i = span[1]
+                paragraph = paragraph[span[1]:]
             else:
-                segment.append(paragraph[i:])
                 break
+
+        if paragraph:
+            segment.append(paragraph)
 
         return segment
 
     def shallow_split(self, paragraph):
+        """base on sep token or sep pattern
+
+        >>> text = 'hello world1.hello world2!hello world3!'
+
+        >>> ToSegment(sep='!').shallow_split(text)
+        ['hello world1.hello world2', 'hello world3', '']
+
+        >>> ToSegment(sep_pattern='.*?[.!]').shallow_split(text)
+        ['hello world1.', 'hello world2!', 'hello world3!']
+        """
         if self.sep == '':
             segment = list(paragraph)
         elif self.sep is not None:

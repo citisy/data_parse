@@ -427,6 +427,27 @@ class DataVisualizer:
     Usage:
         .. code-block:: python
 
+            visualizer = DataVisualizer('visuals', verbose=False)
+
+            rets1 = [
+                {'_id': '0.png', 'image': image, 'bboxes': bboxes, 'classes': classes},
+                {'_id': '1.png', 'image': image, 'bboxes': bboxes, 'classes': classes},
+                {'_id': '2.png', 'image': image, 'bboxes': bboxes, 'classes': classes},
+            ]
+            # will save 3 images, each image contains 1 sub image
+            visualizer(rets1)
+
+            rets2 = [
+                {'image': image, 'bboxes': bboxes, 'classes': classes},
+                {'image': image, 'bboxes': bboxes, 'classes': classes},
+                {'image': image, 'bboxes': bboxes, 'classes': classes},
+            ]
+            # will save 3 images, each image contains 2 sub images
+            # note, rets2 do not need key of `_id`, the value get from rets1
+            visualizer(rets1, rets2)
+
+            # use special visual method
+            # not necessary
             def visual_one_image(r, **visual_kwargs):
                 image = r['image']
                 bboxes = r['bboxes']
@@ -435,12 +456,7 @@ class DataVisualizer:
                 image = visualize.ImageVisualize.block(image, bboxes, colors=colors)
                 return image
 
-            visualizer = DataVisualizer('visuals', verbose=False)
-
-            # use special visual method
             visualizer.visual_one_image = visual_one_image
-
-            visualizer([{'images': images, 'bboxes': bboxes, 'classes': classes}])
     """
 
     def __init__(self, save_dir, pbar=True, **saver_kwargs):
@@ -454,8 +470,8 @@ class DataVisualizer:
         """
 
         Args:
-            *iter_data (List[dict]):
-                each dict must have the of '_id', 'image' and at lease
+            iter_data (List[dict]):
+                each data dict must have the key of '_id', 'image' at lease
                     - _id (str): the name to save the image
                     - image (np.ndarray): must have the same shape
                     - label_mask:
@@ -483,15 +499,12 @@ class DataVisualizer:
                 return
 
             images = []
-            _id = 'tmp.png'
+            _id = rets[0]['_id']
             for r in rets:
                 images.append(self.visual_one_image(r, **visual_kwargs))
 
                 if 'label_mask' in r and r['label_mask'] is not None:
                     images.append(self.visual_one_image({'image': r['label_mask']}, **visual_kwargs))
-
-                if '_id' in r:
-                    _id = r['_id']
 
             image = cv_utils.splice_image(images)
             self.saver.save_img(image, f'{self.save_dir}/{_id}')
