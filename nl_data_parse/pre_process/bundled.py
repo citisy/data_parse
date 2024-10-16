@@ -306,7 +306,7 @@ class CLIPTokenizer:
             ),
             sp_tokens=set(self.sp_token_dict.values()),
         )
-        self.numerizer = numeralizer.BytePairEncode(self.byte_pairs, self.word_dict)
+        self.numerizer = numeralizer.BytePairEncode(self.byte_pairs, self.word_dict, unk_token=self.sp_token_dict['unk'])
         self.numerizer.make_chars = self.make_chars
         self.sp_id_dict = {k: self.word_dict.get(v) for k, v in self.sp_token_dict.items()}
         self.word_suffix = '</w>'
