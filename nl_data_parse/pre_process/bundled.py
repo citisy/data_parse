@@ -334,6 +334,12 @@ class CLIPTokenizer:
         return r
 
     def encode_segments(self, segments):
+        valid_segment_tags = [[True] * len(seg) for seg in segments]
+        valid_segment_tags = snack.align(
+            valid_segment_tags, max_seq_len=self.max_seq_len,
+            start_obj=True, end_obj=True, pad_obj=False
+        )
+
         segments_ids = self.numerizer.encode(segments)
         seq_lens = [len(t) for t in segments_ids]
         segments_ids = snack.align(
@@ -345,7 +351,8 @@ class CLIPTokenizer:
 
         return dict(
             segments_ids=segments_ids,
-            seq_lens=seq_lens
+            seq_lens=seq_lens,
+            valid_segment_tags=valid_segment_tags
         )
 
     def encode_attention_paragraphs(self, paragraphs):
