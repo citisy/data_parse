@@ -1,9 +1,11 @@
 """change the pixel of image"""
-import cv2
 import numbers
+
+import cv2
 import numpy as np
-from . import RandomChoice
+
 from metrics.object_detection import Iou
+from . import RandomChoice
 
 
 class MinMax:
@@ -164,7 +166,8 @@ class Normalize:
 
 class Pca:
     """after dimensionality reduction by pca
-    add the random scale factor"""
+    add the random scale factor
+    todo: still not fix yet"""
 
     def __init__(self, eigenvectors=None, eigen_values=None):
         self.eigenvectors = eigenvectors
@@ -559,12 +562,13 @@ class RandomErasing(Erase):
 
 
 class CutOut:
-    """https://arxiv.org/abs/1708.04552
+    """replace with color blocks
+    https://arxiv.org/abs/1708.04552
     See Also `albumentations.Cutout`
     """
 
     def __init__(self, scales=None, iou_thres=0.6):
-        self.scales = scales or [0.5] * 1 + [0.25] * 2 + [0.125] * 4 + [0.0625] * 8 + [0.03125] * 16  # image size fraction
+        self.scales = scales or [0.5] * 1 + [0.25] * 2 + [0.125] * 4 + [0.0625] * 8 + [0.03125] * 16  # color blocks size fraction
         self.iou_thres = iou_thres
 
     def __call__(self, image, bboxes=None, classes=None, **kwargs):
