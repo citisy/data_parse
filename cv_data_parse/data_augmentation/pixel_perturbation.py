@@ -25,6 +25,7 @@ class MinMax:
 
 
 class Clip:
+    """all falls in [a_min, a_max]"""
     def __init__(self, a_min=0, a_max=255):
         self.a_min = a_min
         self.a_max = a_max
@@ -81,12 +82,14 @@ class SaltNoise:
 
     def apply_image(self, image, *args):
         image = np.copy(image)
+        dtype = image.dtype
         num_salt = np.ceil(self.amount * image.size * self.s_vs_p)
         coords = tuple(np.random.randint(0, i - 1, int(num_salt)) for i in image.shape)
         image[coords] = 255
         num_pepper = np.ceil(self.amount * image.size * (1. - self.s_vs_p))
         coords = tuple(np.random.randint(0, i - 1, int(num_pepper)) for i in image.shape)
         image[coords] = 0
+        image = image.clip(min=0, max=255).astype(dtype)
         return image
 
 
@@ -99,9 +102,11 @@ class PoissonNoise:
         )
 
     def apply_image(self, image, *args):
+        dtype = image.dtype
         vals = len(np.unique(image))
         vals = 2 ** np.ceil(np.log2(vals))
         image = np.random.poisson(image * vals) / float(vals)
+        image = image.clip(min=0, max=255).astype(dtype)
 
         return image
 

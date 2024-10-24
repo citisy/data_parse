@@ -253,7 +253,7 @@ class Rotate:
 
     """
 
-    def __init__(self, angle=90, interpolation=0, expand=False, center=None, fill=0):
+    def __init__(self, angle=90, interpolation=0, expand=False, center=None, fill=(114, 114, 114)):
         self.name = __name__.split('.')[-1] + '.' + self.__class__.__name__
         self.angle = angle
         self.interpolation = interpolation_mode[interpolation]

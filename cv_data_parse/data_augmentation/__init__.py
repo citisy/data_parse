@@ -1,3 +1,5 @@
+import numbers
+
 import numpy as np
 
 
@@ -73,7 +75,7 @@ class RandomApply:
 
     Args:
         funcs(list):
-        probs(list): running prob of each funcs, default 0.5 to each func
+        probs(list or float): running prob of each funcs, default 0.5 to each func
         full_result: whether returning total ret from each funcs or not
             if true, return a list
             if false, return a dict
@@ -93,13 +95,16 @@ class RandomApply:
 
     def __init__(self, funcs=None, probs=None, full_result=False, replace=True):
         self.funcs = funcs
-        self.probs = probs
+        self.probs = probs or [0.5] * len(funcs)
+        if isinstance(self.probs, numbers.Number):
+            self.probs = [self.probs] * len(funcs)
+
         self.full_result = full_result
         self.replace = replace
 
     def __call__(self, **kwargs):
         funcs = self.funcs
-        probs = self.probs or [0.5] * len(funcs)
+        probs = self.probs
         ret = kwargs
         full_result = []
         apply_func_idx = []
