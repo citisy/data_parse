@@ -116,9 +116,9 @@ class AddXY:
 
     def apply_image(self, image, *args):
         if self.axis in (-1, 3):
-            h, w, c = image.shape
+            h, w = image.shape[:2]
         elif self.axis == 0:
-            c, h, w = image.shape
+            h, w = image.shape[1:]
         else:
             raise ValueError(f'Do not support axis = {self.axis}')
 

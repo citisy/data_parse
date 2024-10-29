@@ -151,7 +151,7 @@ class Rectangle:
         if isinstance(dst, int):
             dst = (dst, dst)
 
-        h, w, c = image.shape
+        h, w = image.shape[:2]
         dst_w, dst_h = dst
         add_params = self.get_add_params(dst_w, dst_h, w, h)
 

@@ -296,7 +296,7 @@ class Random(PadCrop):
         if isinstance(dst, int):
             dst = (dst, dst)
         dst_w, dst_h = dst
-        h, w, c = image.shape
+        h, w = image.shape[:2]
 
         w_ = np.random.randint(w - dst_w) if w > dst_w else 0
         h_ = np.random.randint(h - dst_h) if h > dst_h else 0
@@ -313,7 +313,7 @@ class Corner(PadCrop):
         if isinstance(dst, int):
             dst = (dst, dst)
         dst_w, dst_h = dst
-        h, w, c = image.shape
+        h, w = image.shape[:2]
 
         if self.pos == (LEFT, TOP):
             w_, h_ = 0, 0

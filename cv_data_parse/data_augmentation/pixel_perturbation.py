@@ -424,7 +424,7 @@ class GaussianBlur:
         return info['ksize']
 
     def __call__(self, image, **kwargs):
-        h, w, c = image.shape
+        h, w = image.shape[:2]
         add_params = self.get_add_params(w, h)
 
         return {

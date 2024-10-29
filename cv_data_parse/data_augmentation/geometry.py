@@ -282,7 +282,7 @@ class Rotate:
         return a * x + b * y + c, d * x + e * y + f
 
     def __call__(self, image, bboxes=None, **kwargs):
-        h, w, c = image.shape
+        h, w = image.shape[:2]
         add_params = self.get_add_params(h, w)
 
         return {
