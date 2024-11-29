@@ -20,45 +20,108 @@ import numpy as np
 from tqdm import tqdm
 
 from utils.visualize import TextVisualize
+from . import spliter
 
 
-class ToChunkedParagraphs:
-    """chunk without dropping any context
+class ToChunked:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
 
-    Usage:
-        >>> ToChunkedParagraphs(max_length=5).from_paragraphs(['abcdefghijklmn'])
-        ['abcde', 'fghij', 'klmn']
+    def from_paragraphs(self, paragraphs: List[str]):
+        """same to from_segment"""
+        raise NotImplemented
 
-        >>> ToChunkedParagraphs(max_length=5).from_paragraphs(['abc', 'def', 'ghi', 'jk', 'lmn'])
-        ['abcde', 'fghij', 'klmn']
+    def from_paragraph(self, paragraph: str):
+        raise NotImplemented
 
-        >>> ToChunkedParagraphs(max_length=5, min_length=3).from_paragraphs(['abc', 'def', 'ghi', 'jk', 'lmn'])
-        ['abc', 'def', 'ghi', 'jklmn']
+    def from_segments(self, segments: List[List[str]]):
+        raise NotImplemented
 
-        >>> ToChunkedParagraphs(max_length=5).from_paragraphs(['abc,def.ghijk,lmn.'])
-        ['abc,', 'def.', 'ghijk', ',lmn.']
+    def from_segment(self, segment: List[str]):
+        """same to from_segment"""
+        raise NotImplemented
+
+
+class ToChunkedParagraphs(ToChunked):
+    """chunk without dropping any context"""
+    max_len = 512
+
+    def from_segment(self, segment: List[str]):
+        return self.from_paragraphs(segment)
+
+
+class WindowToChunkedParagraphs(ToChunkedParagraphs):
+    """simple concatenate by window sliding"""
+
+    def from_paragraphs(self, paragraphs: List[str]):
+        """
+        Usage:
+            >>> paragraphs = [f'hello! world{i}!' for i in range(5)]
+            >>> WindowToChunkedParagraphs(max_len=30).from_paragraphs(paragraphs)
+            ['hello! world0!hello! world1!', 'hello! world2!hello! world3!', 'hello! world4!']
+
+        """
+        chunked_paragraphs = []
+        chunk = ''
+
+        for p in paragraphs:
+            assert len(p) < self.max_len, f'all input text length must no more than {self.max_len}, or try to use `RetentionToChunkedParagraphs`'
+
+            if len(chunk + p) > self.max_len:
+                chunked_paragraphs.append(chunk)
+                chunk = ''
+
+            chunk += p
+
+        if chunk:
+            chunked_paragraphs.append(chunk)
+
+        return chunked_paragraphs
+
+    def from_paragraph(self, paragraph: str):
+        """
+        Usage:
+            >>> paragraph = ''.join([f'hello! world{i}!' for i in range(5)])
+            >>> WindowToChunkedParagraphs(max_len=30).from_paragraph(paragraph)
+            ['hello! world0!hello! world1!he', 'llo! world2!hello! world3!hell', 'o! world4!']
+        """
+        chunked_paragraphs = []
+        s = 0
+
+        while True:
+            chunked_paragraphs.append(paragraph[s: s + self.max_len])
+            s += self.max_len
+            if s > len(paragraph):
+                break
+
+        return chunked_paragraphs
+
+
+class RetentionToChunkedParagraphs(ToChunkedParagraphs):
+    """chunk by truncate to keep all chunks' length close to the `max_len` as far as possible
+
+    Args:
+        max_len:
+            chunked will be stopped before len(seq) < max_len
+        min_len:
+            chunked stopped after len(seq) > min_len
+
     """
 
     full_stop_rx = re.compile(r'.*[。\.!?！？]', re.DOTALL)
     half_stop_rx = re.compile(r'.*[\];；,，、》）}]', re.DOTALL)
     newline_stop_rx = re.compile(r'.+\n', re.DOTALL)
-    max_length = 512
-    min_length = None
-
-    def __init__(self, **kwargs):
-        """
-
-        Args:
-            max_length:
-                chunked will be stopped before len(seq) < max_length
-            min_length:
-                chunked stopped after len(seq) > min_length
-        """
-        self.__dict__.update(kwargs)
+    min_len: int
 
     def from_paragraphs(self, paragraphs: List[str]):
         """
-        ['abc', 'def', 'ghi', 'jk', 'lmn'] -> ['abcde', 'fghij', 'klmn']
+        Usage:
+            >>> paragraphs = [f'hello! world{i}!' for i in range(5)]
+            >>> RetentionToChunkedParagraphs(max_len=25).from_paragraphs(paragraphs)
+            ['hello! world0!hello!', ' world1!hello! world2!', 'hello! world3!hello!', ' world4!']
+
+            >>> RetentionToChunkedParagraphs(max_len=5, min_len=10).from_paragraphs(['abc', 'def', 'ghi', 'jk', 'lmn'])
+            ['hello! world0!', 'hello! world1!', 'hello! world2!', 'hello! world3!', 'hello! world4!']
         """
         chunked_paragraphs = []
         chunk = ''
@@ -66,11 +129,11 @@ class ToChunkedParagraphs:
         for p in paragraphs:
             chunk += p
 
-            if len(chunk) > self.max_length:
+            if len(chunk) > self.max_len:
                 chunks = self.from_paragraph(chunk)
                 chunked_paragraphs.extend(chunks[:-1])
                 chunk = chunks[-1]
-            elif self.min_length and len(chunk) >= self.min_length:
+            elif hasattr(self, 'min_len') and len(chunk) >= self.min_len:
                 chunked_paragraphs.append(chunk)
                 chunk = ''
 
@@ -81,21 +144,24 @@ class ToChunkedParagraphs:
 
     def from_paragraph(self, paragraph: str) -> List[str]:
         """
-        'abcdefghijklmn' -> ['abcde', 'fghij', 'klmn']
+        Usage:
+            >>> paragraph = ''.join([f'hello! world{i}!' for i in range(5)])
+            >>> RetentionToChunkedParagraphs(max_len=30).from_paragraph(paragraph)
+            ['hello! world0!hello! world1!', 'hello! world2!hello! world3!', 'hello! world4!']
         """
         chunked_paragraphs = []
         rest = paragraph
 
         while True:
-            if len(rest) <= self.max_length:
+            if len(rest) <= self.max_len:
                 if rest:
                     chunked_paragraphs.append(rest)
                 break
 
-            tail = rest[self.max_length:]
+            tail = rest[self.max_len:]
 
-            left_f, right_f, is_matched_f = self.truncate_by_stop_symbol(rest[:self.max_length], self.full_stop_rx)
-            left_n, right_n, is_matched_n = self.truncate_by_stop_symbol(rest[:self.max_length], self.newline_stop_rx)
+            left_f, right_f, is_matched_f = self.truncate_by_stop_symbol(rest[:self.max_len], self.full_stop_rx)
+            left_n, right_n, is_matched_n = self.truncate_by_stop_symbol(rest[:self.max_len], self.newline_stop_rx)
 
             if is_matched_f and is_matched_n:
                 if len(left_f) >= len(left_n):
@@ -107,11 +173,11 @@ class ToChunkedParagraphs:
             elif is_matched_n:
                 sect, rest = left_n, right_n + tail
             else:
-                left_h, right_h, is_matched_h = self.truncate_by_stop_symbol(rest[:self.max_length], self.half_stop_rx)
+                left_h, right_h, is_matched_h = self.truncate_by_stop_symbol(rest[:self.max_len], self.half_stop_rx)
                 if is_matched_h:
                     sect, rest = left_h, right_h + tail
                 else:
-                    sect, rest = rest[:self.max_length], rest[self.max_length:]
+                    sect, rest = rest[:self.max_len], rest[self.max_len:]
 
             chunked_paragraphs.append(sect)
 
@@ -132,12 +198,19 @@ class ToChunkedParagraphs:
         return left, right, is_matched
 
 
-class RandomToChunkedParagraphs(ToChunkedParagraphs):
+class RandomRetentionToChunkedParagraphs(RetentionToChunkedParagraphs):
+    """split paragraphs in pieces randomly, and then chunk them one by one"""
+
     min_choices = 2
     max_choices = None
 
     def from_paragraphs(self, paragraphs: List[str]):
-        """split paragraphs in pieces randomly, and then chunk them one by one"""
+        """
+         Usage:
+            >>> paragraphs = [f'hello! world{i}!' for i in range(5)]
+            >>> RandomRetentionToChunkedParagraphs(max_len=25).from_paragraphs(paragraphs)
+            ['hello! world0!hello!', ' world1!', 'hello! world2!hello!', ' world3!hello! world4!']
+        """
         n = len(paragraphs)
         max_choices = self.max_choices or n
         max_choices = min(max_choices, n)
@@ -156,25 +229,95 @@ class RandomToChunkedParagraphs(ToChunkedParagraphs):
 
         return chunks
 
-    def from_paragraph(self, paragraph: str) -> List[str]:
-        raise NotImplementedError
+
+class DuplicatedToChunkedParagraphs(ToChunkedParagraphs):
+    """chunk by window sliding with duplicated context"""
+    duplicate_len: int
+    duplicate_ratio: float = 0.2
+
+    def from_paragraphs(self, paragraphs):
+        """
+         Usage:
+            >>> paragraphs = [f'hello! world{i}!' for i in range(5)]
+            >>> DuplicatedToChunkedParagraphs(max_len=30, duplicate_len=5).from_paragraphs(paragraphs)
+            ['hello! world0!hello! world1!', 'hello! world1!hello! world2!', 'hello! world3!hello! world4!']
+        """
+        if hasattr(self, 'duplicate_len'):
+            duplicate_len = self.duplicate_len
+        else:
+            duplicate_len = int(self.max_len * self.duplicate_ratio)
+
+        keep_length = self.max_len - duplicate_len
+
+        chunked_paragraphs = []
+        chunk = ''
+        next_chunk = ''
+
+        for p in paragraphs:
+            assert len(p) < self.max_len, f'all input text length must no more than {self.max_len}, or try to use `RetentionToChunkedParagraphs`'
+
+            if len(chunk + p) > self.max_len:
+                chunked_paragraphs.append(chunk)
+                chunk = next_chunk
+                next_chunk = ''
+            elif len(chunk + p) > keep_length:
+                next_chunk += p
+
+            chunk += p
+
+        if chunk:
+            chunked_paragraphs.append(chunk)
+
+        return chunked_paragraphs
+
+    def from_paragraph(self, paragraph: str):
+        """
+         Usage:
+            >>> paragraph = ''.join([f'hello! world{i}!' for i in range(5)])
+            >>> DuplicatedToChunkedParagraphs(max_len=30).from_paragraph(paragraph)
+            ['hello! world0!hello! world1!he', 'ld1!hello! world2!hello! world', ' world3!hello! world4!']
+        """
+        if hasattr(self, 'duplicate_len'):
+            duplicate_len = self.duplicate_len
+        else:
+            duplicate_len = int(self.max_len * self.duplicate_ratio)
+
+        chunked_paragraphs = []
+        s = 0
+
+        while True:
+            chunked_paragraphs.append(paragraph[s: s + self.max_len])
+            s += self.max_len - duplicate_len
+            if s > len(paragraph):
+                break
+
+        return chunked_paragraphs
 
 
-class ToChunkedSegments:
+class ToChunkedSegments(ToChunked):
     """chunk without dropping any context"""
+
+    def from_paragraphs(self, paragraphs: List[str]):
+        return self.from_segment(paragraphs)
+
+
+class RetentionToChunkedSegments(ToChunkedSegments):
+    """chunk by truncate to keep all chunks' length close to the `max_len` as far as possible"""
 
     full_stop_tokens = set('。.!?！？')
     half_stop_tokens = set('];；,，、》）}')
     newline_stop_tokens = set('\n')
-    max_length = 512
-    min_length = None
+    max_len = 512
+    min_len: int
     verbose = False
 
-    def __init__(self, **kwargs):
-        """see also `ToChunkedParagraphs`"""
-        self.__dict__.update(kwargs)
-
     def from_segments(self, segments: List[List[str]]):
+        """
+         Usage:
+            >>> segments = spliter.ToSegments().from_paragraphs([f'hello{i}! world{i}!' for i in range(5)])
+            >>> RetentionToChunkedSegments(max_len=7).from_segments(segments)
+            [['hello0', '!', 'world0', '!', 'hello1', '!'], ['world1', '!', 'hello2', '!', 'world2', '!'], ['hello3', '!', 'world3', '!', 'hello4', '!'], ['world4', '!']]
+        """
         chunked_segments = []
         chunked_segment = []
 
@@ -184,11 +327,11 @@ class ToChunkedSegments:
         for p in segments:
             chunked_segment += p
 
-            if len(chunked_segment) > self.max_length:
+            if len(chunked_segment) > self.max_len:
                 chunks = self.from_segment(chunked_segment)
                 chunked_segments.extend(chunks[:-1])
                 chunked_segment = chunks[-1]
-            elif self.min_length and len(chunked_segment) >= self.min_length:
+            elif hasattr(self, 'min_len') and len(chunked_segment) >= self.min_len:
                 chunked_segments.append(chunked_segment)
                 chunked_segment = []
 
@@ -198,17 +341,23 @@ class ToChunkedSegments:
         return chunked_segments
 
     def from_segment(self, segment):
+        """
+         Usage:
+            >>> spliter.ToSegment().from_paragraph(''.join([f'hello{i}! world{i}!' for i in range(5)]))
+            >>> RetentionToChunkedSegments(max_len=7).from_segment(segment)
+            [['hello0', '!', 'world0', '!', 'hello1', '!'], ['world1', '!', 'hello2', '!', 'world2', '!'], ['hello3', '!', 'world3', '!', 'hello4', '!'], ['world4', '!']]
+        """
         chunked_segments = []
         rest = segment
 
         while True:
-            if len(rest) <= self.max_length:
+            if len(rest) <= self.max_len:
                 if rest:
                     chunked_segments.append(rest)
                 break
 
-            keep = rest[:self.max_length]
-            tail = rest[self.max_length:]
+            keep = rest[:self.max_len]
+            tail = rest[self.max_len:]
 
             left_f, right_f, is_matched_f = self.truncate_by_stop_token(keep, self.full_stop_tokens)
             left_n, right_n, is_matched_n = self.truncate_by_stop_token(keep, self.newline_stop_tokens)
@@ -247,12 +396,18 @@ class ToChunkedSegments:
         return left, right, is_matched
 
 
-class RandomToChunkedSegments(ToChunkedSegments):
+class RandomToChunkedSegments(RetentionToChunkedSegments):
+    """split segments in pieces randomly, and then chunk them one by one"""
     min_choices = 2
     max_choices = None
 
     def from_segments(self, segments: List[List[str]]):
-        """split segments in pieces randomly, and then chunk them one by one"""
+        """
+         Usage:
+            >>> segments = spliter.ToSegments().from_paragraphs([f'hello{i}! world{i}!' for i in range(5)])
+            >>> RandomToChunkedSegments(max_len=7).from_segments(segments)
+            [['hello0', '!', 'world0', '!', 'hello1', '!'], ['world1', '!'], ['hello2', '!', 'world2', '!'], ['hello3', '!', 'world3', '!', 'hello4', '!'], ['world4', '!']]
+        """
         n = len(segments)
         max_choices = self.max_choices or n
         max_choices = min(max_choices, n)
@@ -270,38 +425,37 @@ class RandomToChunkedSegments(ToChunkedSegments):
 
         return chunks
 
-    def from_segment(self, segment):
-        raise NotImplementedError
 
-
-class WindowsToChunkedSegments(ToChunkedSegments):
-    """chunk by window sliding, it will have duplicated context"""
-
-    def from_segments(self, segments):
-        pass
-
-
-class ToChunkedParagraph:
+class ToChunkedParagraph(ToChunked):
     """chunk by dropping some context"""
 
-    max_length: int = 512
+    max_len: int = 512
+    spliter = spliter.ToSegment()
 
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-    def from_segment(self, segment):
-        raise NotImplementedError
+    def from_paragraphs(self, paragraphs: List[str]):
+        return self.from_segment(paragraphs)
 
     def from_paragraph(self, paragraph):
-        raise NotImplementedError
+        segment = self.paragraph_to_segment(paragraph)
+        return self.from_segment(segment)
+
+    def paragraph_to_segment(self, paragraph) -> List[str]:
+        """see also `spliter`"""
+        return self.spliter.from_paragraph(paragraph)
 
 
 class HeadToChunkedParagraph(ToChunkedParagraph):
     def from_segment(self, segment):
+        """
+         Usage:
+            >>> segment = [f'hello{i}! world{i}!' for i in range(5)]
+            >>> HeadToChunkedParagraph(max_len=30).from_segment(segment)
+            hello0! world0!hello1! world1!
+        """
         chunked_paragraph = ''
 
         for seg in segment:
-            if len(chunked_paragraph + seg) > self.max_length:
+            if len(chunked_paragraph + seg) > self.max_len:
                 break
 
             chunked_paragraph += seg
@@ -311,11 +465,31 @@ class HeadToChunkedParagraph(ToChunkedParagraph):
 
 class TailToChunkedParagraph(HeadToChunkedParagraph):
     def from_segment(self, segment):
-        return super().from_segment(segment[::-1])
+        """
+         Usage:
+            >>> segment = [f'hello{i}! world{i}!' for i in range(5)]
+            >>> TailToChunkedParagraph(max_len=30).from_segment(segment)
+            hello3! world3!hello4! world4!
+        """
+        chunked_paragraph = ''
+
+        for seg in segment[::-1]:
+            if len(chunked_paragraph + seg) > self.max_len:
+                break
+
+            chunked_paragraph = seg + chunked_paragraph
+
+        return chunked_paragraph
 
 
 class MiddleToChunkedParagraph(ToChunkedParagraph):
     def from_segment(self, segment):
+        """
+         Usage:
+            >>> segment = [f'hello{i}! world{i}!' for i in range(5)]
+            >>> MiddleToChunkedParagraph(max_len=30).from_segment(segment)
+            hello1! world1!hello2! world2!
+        """
         n = len(segment)
         mid_n = n // 2
         word_n = [len(s) for s in segment]
@@ -328,7 +502,7 @@ class MiddleToChunkedParagraph(ToChunkedParagraph):
             if flag == 'r':
                 i = mid_n + r
                 a = word_n[i]
-                if pl + a > self.max_length:
+                if pl + a > self.max_len:
                     break
                 else:
                     keep.add(i)
@@ -337,7 +511,7 @@ class MiddleToChunkedParagraph(ToChunkedParagraph):
             else:
                 i = mid_n - l
                 a = word_n[i]
-                if pl + a > self.max_length:
+                if pl + a > self.max_len:
                     break
                 else:
                     keep.add(i)
@@ -355,13 +529,19 @@ class TwoPiecesToChunkedParagraph(ToChunkedParagraph):
     ratios = (0.5, 0.5)
 
     def from_segment(self, segment):
-        if sum(len(s) for s in segment) <= self.max_length:
+        """
+         Usage:
+            >>> segment = [f'hello{i}! world{i}!' for i in range(5)]
+            >>> TwoPiecesToChunkedParagraph(max_len=30).from_segment(segment)
+            hello0! world0!hello4! world4!
+        """
+        if sum(len(s) for s in segment) <= self.max_len:
             return ''.join(segment)
 
-        max_seq = [int(self.max_length * r) for r in self.ratios]
+        max_seq = [int(self.max_len * r) for r in self.ratios]
         chunked_paragraph = ''
-        chunked_paragraph += HeadToChunkedParagraph(max_length=max_seq[0]).from_segment(segment)
-        chunked_paragraph += TailToChunkedParagraph(max_length=max_seq[1]).from_segment(segment)
+        chunked_paragraph += HeadToChunkedParagraph(max_len=max_seq[0]).from_segment(segment)
+        chunked_paragraph += TailToChunkedParagraph(max_len=max_seq[1]).from_segment(segment)
         return chunked_paragraph
 
 
@@ -370,14 +550,20 @@ class ThreePiecesToChunkedParagraph(ToChunkedParagraph):
     ratios = (0.4, 0.2, 0.4)
 
     def from_segment(self, segment):
-        if sum(len(s) for s in segment) <= self.max_length:
+        """
+         Usage:
+            >>> segment = [f'hello{i}! world{i}!' for i in range(5)]
+            >>> ThreePiecesToChunkedParagraph(max_len=50, ratios=(0.3, 0.3, 0.3)).from_segment(segment)
+            hello0! world0!hello2! world2!hello4! world4!
+        """
+        if sum(len(s) for s in segment) <= self.max_len:
             return ''.join(segment)
 
-        max_seq = [int(self.max_length * r) for r in self.ratios]
+        max_seq = [int(self.max_len * r) for r in self.ratios]
         chunked_paragraph = ''
-        chunked_paragraph += HeadToChunkedParagraph(max_length=max_seq[0]).from_segment(segment)
-        chunked_paragraph += MiddleToChunkedParagraph(max_length=max_seq[1]).from_segment(segment)
-        chunked_paragraph += TailToChunkedParagraph(max_length=max_seq[2]).from_segment(segment)
+        chunked_paragraph += HeadToChunkedParagraph(max_len=max_seq[0]).from_segment(segment)
+        chunked_paragraph += MiddleToChunkedParagraph(max_len=max_seq[1]).from_segment(segment)
+        chunked_paragraph += TailToChunkedParagraph(max_len=max_seq[2]).from_segment(segment)
         return chunked_paragraph
 
 
@@ -386,24 +572,34 @@ class KPiecesToChunkedParagraph(ToChunkedParagraph):
     k: int = 5
 
     def from_segment(self, segment):
+        """
+         Usage:
+            >>> segment = [f'hello{i}! world{i}!' for i in range(10)]
+            >>> KPiecesToChunkedParagraph(max_len=75).from_segment(segment)
+            hello0! world0!hello2! world2!hello4! world4!hello6! world6!hello8! world8!
+        """
         word_n = [len(s) for s in segment]
         total_n = sum(word_n)
 
-        if total_n <= self.max_length:
+        if total_n <= self.max_len:
             return ''.join(segment)
 
         mean_n = total_n // self.k
-        _max_length = self.max_length // self.k
+        _max_len = self.max_len // self.k
 
         chunked_paragraph = ''
         tmp_n = 0
         tmp_segment = []
         for n, s in zip(word_n, segment):
             if tmp_n >= mean_n:
-                chunked_paragraph += HeadToChunkedParagraph(max_length=_max_length).from_segment(tmp_segment)
+                chunked_paragraph += HeadToChunkedParagraph(max_len=_max_len).from_segment(tmp_segment)
                 tmp_n = 0
                 tmp_segment = []
 
             tmp_n += n
             tmp_segment.append(s)
+
+        if tmp_n >= mean_n:
+            chunked_paragraph += HeadToChunkedParagraph(max_len=_max_len).from_segment(tmp_segment)
+
         return chunked_paragraph
