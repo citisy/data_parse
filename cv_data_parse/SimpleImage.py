@@ -83,7 +83,7 @@ class ZipSaver(DataSaver):
         f = ZipFile(f'{self.data_dir}/{task}.zip', 'w')
         return self.gen_data(iter_data, f=f, **gen_kwargs)
 
-    def parse_ret(self, ret, sub_task='', f=None, save_label=False, **get_kwargs):
+    def parse_ret(self, ret, sub_task='.', f=None, save_label=False, **get_kwargs):
         image = ret['image']
         _id = ret['_id']
         image = converter.DataConvert.image_to_bytes(image)

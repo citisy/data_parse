@@ -97,8 +97,28 @@ class Keep3Dims:
         shape = image.shape
         if len(shape) == 2:
             image = image[:, :, None]
-        elif len(shape) == 4:
-            pass
+        else:
+            raise ValueError(f'Do not support shape = {shape}')
+        return image
+
+
+class Keep3Channels:
+    def __call__(self, image, **kwargs):
+        return dict(
+            image=self.apply_image(image)
+        )
+
+    def apply_image(self, image, *args):
+        c = image.shape[-1]
+        if c == 1:
+            image = np.concatenate([image, image, image], axis=-1)
+        elif c == 4:
+            color = image[:, :, 0:3].astype(np.float32)
+            alpha = image[:, :, 3:4].astype(np.float32) / 255.0
+            image = color * alpha + 255.0 * (1.0 - alpha)
+            image = image.clip(0, 255).astype(np.uint8)
+        else:
+            raise ValueError(f'Do not support channels = {c}')
         return image
 
 

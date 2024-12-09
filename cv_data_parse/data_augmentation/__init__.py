@@ -228,3 +228,20 @@ class RandomChoice:
                 ret = func.restore(ret)
 
         return ret
+
+
+class Lambda:
+    def __init__(self, func, restore_func=None):
+        self.func = func
+        self.restore_func = restore_func if restore_func else lambda x: x
+
+    def __call__(self, image, **kwargs):
+        return dict(
+            image=self.apply_image(image, **kwargs)
+        )
+
+    def apply_image(self, image, **kwargs):
+        return self.func(image, **kwargs)
+
+    def restore(self, ret):
+        return self.restore_func(ret)

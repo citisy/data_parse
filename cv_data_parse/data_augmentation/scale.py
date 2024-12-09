@@ -10,8 +10,8 @@ from . import crop
 interpolation_mode = [
     cv2.INTER_LINEAR,
     cv2.INTER_NEAREST,
-    cv2.INTER_AREA,
-    cv2.INTER_CUBIC,
+    cv2.INTER_AREA,     # usually zoom out
+    cv2.INTER_CUBIC,    # usually zoom in
     cv2.INTER_LANCZOS4
 ]
 
