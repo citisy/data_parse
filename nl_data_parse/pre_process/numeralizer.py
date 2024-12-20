@@ -108,7 +108,12 @@ class BytePairEncode:
     refer to: https://www.drdobbs.com/a-new-algorithm-for-data-compression/184402829
     """
 
-    def __init__(self, byte_pairs, word_dict, word_inv_dict=None, byte_encode_dict=None, byte_decoder_dict=None, unk_token=None):
+    def __init__(
+            self,
+            byte_pairs, word_dict, word_inv_dict=None,
+            byte_encode_dict=None, byte_decoder_dict=None,
+            sp_word_dict={}, unk_token=None
+    ):
         self.byte_pairs = byte_pairs
         if not isinstance(self.byte_pairs, dict):
             # id: (char1, char2)
@@ -121,7 +126,7 @@ class BytePairEncode:
         self.byte_decoder_dict = byte_decoder_dict or {v: k for k, v in self.byte_encode_dict.items()}
         self.unk_id = self.word_dict.get(unk_token)
 
-        self.caches = {}
+        self.caches = {k: [v] for k, v in sp_word_dict.items()}
 
     @staticmethod
     def make_default_byte_encode_dict():

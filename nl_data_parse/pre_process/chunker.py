@@ -294,6 +294,53 @@ class DuplicatedToChunkedParagraphs(ToChunkedParagraphs):
         return chunked_paragraphs
 
 
+class KPiecesToChunkedParagraphs(ToChunkedParagraphs):
+    """chunk to k pieces whose text length as same as possible"""
+    k: int = 5
+    spliter = spliter.ToSegment(
+        sep_pattern='.*?[。\.!?！？\];；,，、》）}]',
+        is_split_punctuation=False
+    )
+
+    def from_paragraphs(self, paragraphs: List[str]):
+        assert len(paragraphs) > self.k, f'input paragraphs must be more than {self.k}, but got {len(paragraphs)}'
+        # todo, bugs when no sep_pattern in the line end, such as, ['hello', 'world'] -> ['helloworld']
+        return self.from_paragraph(''.join(paragraphs))
+
+    def from_paragraph(self, paragraph: str):
+        total_n = len(paragraph)
+        mean_n = total_n / self.k
+        segments = self.spliter.from_paragraph(paragraph)
+
+        diff = 0
+        chunked_paragraphs = []
+        chunk = ''
+
+        for s in segments:
+            if len(chunk + s) > mean_n:
+                l = len(chunk) - mean_n + diff
+                r = len(chunk + s) - mean_n + diff
+                if l + r > 0:
+                    chunked_paragraphs.append(chunk)
+                    chunk = s
+                    diff = l
+                else:
+                    chunk += s
+                    chunked_paragraphs.append(chunk)
+                    chunk = ''
+                    diff = r
+
+            else:
+                chunk += s
+
+        if chunk:
+            chunked_paragraphs.append(chunk)
+
+        return chunked_paragraphs
+
+
+
+
 class ToChunkedSegments(ToChunked):
     """chunk without dropping any context"""
 

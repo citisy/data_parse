@@ -1,9 +1,11 @@
+import re
+from typing import List, Dict
+
 import numpy as np
 import torch
-import re
-from . import spliter, chunker, cleaner, snack, numeralizer, perturbation
+
 from utils import os_lib
-from typing import List, Dict
+from . import spliter, chunker, cleaner, snack, numeralizer, perturbation
 
 
 class Apply:
@@ -78,12 +80,12 @@ class BertTokenizer:
         )
         self.perturbation = perturbation.RandomMask(self.word_dict, self.sp_id_dict, self.total_sp_token_dict)
 
-    @staticmethod
-    def from_pretrain(vocab_fn, **kwargs):
+    @classmethod
+    def from_pretrain(cls, vocab_fn, **kwargs):
         # note, vocab must be with word piece, e.g. uncased_L-12_H-768_A-12/vocab.txt
         # https://github.com/google-research/bert to get more details
         vocab = os_lib.loader.auto_load(vocab_fn)
-        return BertTokenizer(vocab, **kwargs)
+        return cls(vocab, **kwargs)
 
     def encode(self, paragraphs, mask=False):
         segments = self.encode_paragraphs_to_segments(paragraphs)
@@ -159,32 +161,50 @@ class GPT2Tokenizer:
     """
 
     sp_token_dict = dict(
-        pad=' '
+        pad='<|endoftext|>'
     )
 
-    def __init__(self, byte_pairs, word_dict, pad_id=None, max_seq_len=512, **kwargs):
-        import regex
+    sp_id_dict = dict(
+        pad=0
+    )
+
+    max_seq_len = 512
+
+    regex_str = r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+
+    def __init__(self, byte_pairs, word_dict, **kwargs):
+        import regex    # note, do not use `re` mudule
+
+        self.__dict__.update(kwargs)
 
         self.byte_pairs = byte_pairs
         self.word_dict = word_dict
         self.vocab_size = len(word_dict)
-        self.max_seq_len = max_seq_len
+        self.sp_word_dict = {self.sp_token_dict[k]: self.sp_id_dict[k] for k in self.sp_token_dict}
 
         # https://github.com/openai/gpt-2/blob/master/src/encoder.py#L53
-        self.sep_pattern = regex.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
+        self.sep_pattern = regex.compile(self.regex_str)
 
-        self.spliter = spliter.ToSegments(sep_pattern=self.sep_pattern, is_split_punctuation=False)
-        self.numerizer = numeralizer.BytePairEncode(self.byte_pairs, self.word_dict)
-        self.pad_id = pad_id or self.numerizer.encode([' '])[0][0]
+        self.spliter = spliter.ToSegments(sep_pattern=self.sep_pattern, is_split_punctuation=False, sp_tokens=set(self.sp_token_dict.values()))
+        self.numerizer = numeralizer.BytePairEncode(self.byte_pairs, self.word_dict, sp_word_dict=self.sp_word_dict)
 
-        self.__dict__.update(kwargs)
+        self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
+        self.__dict__.update({f'{k}_id': v for k, v in self.sp_id_dict.items()})
 
-    @staticmethod
-    def from_pretrain(encoder_path, vocab_path, **kwargs):
+    @classmethod
+    def from_pretrain(cls, encoder_path, vocab_path, **kwargs):
+        """
+
+        Args:
+            encoder_path: 'xxx/vocab.json'
+            vocab_path: 'xxx/merges.txt'
+            **kwargs:
+
+        """
         word_dict = os_lib.loader.load_json(encoder_path)
         byte_pairs = os_lib.loader.load_txt(vocab_path)
         byte_pairs = byte_pairs[1:]
-        return GPT2Tokenizer(byte_pairs, word_dict, **kwargs)
+        return cls(byte_pairs, word_dict, **kwargs)
 
     def encode_segments(self, segments):
         segments_ids = self.numerizer.encode(segments)
@@ -224,13 +244,19 @@ class T5Tokenizer:
         self.__dict__.update(kwargs)
         self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
 
-    @staticmethod
-    def from_pretrain(vocab_path, **kwargs):
-        # pip install sentencepiece
-        from sentencepiece import SentencePieceProcessor
+    @classmethod
+    def from_pretrain(cls, vocab_path, **kwargs):
+        """
+
+        Args:
+            vocab_path: 'xxx/tokenizer.model'
+            **kwargs:
+
+        """
+        from sentencepiece import SentencePieceProcessor    # pip install sentencepiece
 
         sp_model = SentencePieceProcessor(model_file=vocab_path)
-        return T5Tokenizer(sp_model, **kwargs)
+        return cls(sp_model, **kwargs)
 
     def encode(self, paragraphs):
         segments_ids = self.sp_model.encode(paragraphs)
@@ -321,12 +347,12 @@ class CLIPTokenizer:
         'hello' -> ['h', 'e', 'l', 'l', 'o</w>']"""
         return list(word[:-1]) + [word[-1] + self.word_suffix]
 
-    @staticmethod
-    def from_pretrain(encoder_path, vocab_path, **kwargs):
+    @classmethod
+    def from_pretrain(cls, encoder_path, vocab_path, **kwargs):
         word_dict = os_lib.loader.load_json(encoder_path)
         byte_pairs = os_lib.loader.load_txt(vocab_path)
         byte_pairs = byte_pairs[1:]
-        return CLIPTokenizer(byte_pairs, word_dict, **kwargs)
+        return cls(byte_pairs, word_dict, **kwargs)
 
     def encode_paragraphs(self, paragraphs):
         segments = self.spliter.from_paragraphs(paragraphs)
@@ -509,32 +535,45 @@ class LlamaTokenizer:
         raw_e_sys="<</SYS>>"
     )
 
+    default_roles = ['system', 'user', 'assistant']
+
     def __init__(self, sp_model: 'SentencePieceProcessor', max_seq_len=512, **kwargs):
         self.max_seq_len = max_seq_len
         self.sp_model = sp_model
-        self.vocab_size: int = 32000
-        self.bos_id: int = self.sp_model.bos_id()
-        self.eos_id: int = self.sp_model.eos_id()
-        self.pad_id: int = self.sp_model.pad_id()
+        self.vocab_size: int = self.sp_model.vocab_size()   # 32000
+        self.bos_id: int = self.sp_model.bos_id()  # 1
+        self.eos_id: int = self.sp_model.eos_id()  # 2
+        self.pad_id: int = self.sp_model.pad_id()  # -1
 
         self.__dict__.update(kwargs)
         self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
 
-        self.role_to_token_dict = dict(
-            system=f'{self.b_sys_token}%s{self.e_sys_token}',
-            user=f'{self.b_inst_token} %s {self.e_inst_token}',
-            assistant=f'{self.b_inst_token} %s {self.e_inst_token}',
+    @property
+    def chat_template(self):
+        return dict(
+            # <<SYS>>\n {system} \n<</SYS>>\n\n
+            system=f'{self.b_sys_token}{{system}}{self.e_sys_token}',
+            # [INST] {user} [/INST]
+            user=f'{self.b_inst_token} {{user}} {self.e_inst_token}',
+            # [INST] {user} [/INST] {assistant}
+            user_assistant=f'{self.b_inst_token} {{user}} {self.e_inst_token} {{assistant}}'
         )
 
-    @staticmethod
-    def from_pretrain(vocab_path, **kwargs):
-        # pip install sentencepiece
-        from sentencepiece import SentencePieceProcessor
+    @classmethod
+    def from_pretrain(cls, vocab_path, **kwargs):
+        """
+
+        Args:
+            vocab_path: 'xxx/tokenizer.model'
+            **kwargs:
+
+        """
+        from sentencepiece import SentencePieceProcessor  # pip install sentencepiece
 
         sp_model = SentencePieceProcessor(model_file=vocab_path)
-        return LlamaTokenizer(sp_model, **kwargs)
+        return cls(sp_model, **kwargs)
 
-    def encode_dialogs(self, dialogs: List[List[Dict]]):
+    def encode_dialogs(self, dialogs: List[List[Dict]]) -> dict:
         segments_ids = []
         for dialog in dialogs:
             segments_id = self.encode_dialog(dialog)
@@ -557,18 +596,24 @@ class LlamaTokenizer:
             seq_lens=seq_lens
         )
 
-    def encode_dialog(self, dialog):
+    def encode_dialog(self, dialog: List[Dict]) -> List[int]:
         """
         dialog format: [{'role': ..., 'content': ...}]
-        content format after encoding like that:
-            '[bos] [INST] <<SYS>>\n system \n<</SYS>>\n\n question1 [/INST] answer1 [eos] [bos] [INST] question2'
+        """
+        segment = self.dialog_to_segment(dialog)
+        return self.encode_segment(segment)
+
+    def dialog_to_segment(self, dialog: List[Dict]) -> List[str]:
+        """
+        content format after converted mostly like that:
+            '[bos] [INST] <<SYS>>\n {system} \n<</SYS>>\n\n {question1} [/INST] {answer1} [eos] [bos] [INST] {question2}'
         """
         if dialog[0]["role"] == "system":
             # merge system content to question
             dialog = [
                          {
                              "role": dialog[1]["role"],
-                             "content": f'{self.b_sys_token}{dialog[0]["content"]}{self.e_sys_token}{dialog[1]["content"]}',
+                             "content": self.chat_template['system'].format(system=dialog[0]["content"]) + dialog[1]["content"],
                          }
                      ] + dialog[2:]
 
@@ -578,26 +623,32 @@ class LlamaTokenizer:
 
         # must remain the last content of user
         assert dialog[-1]["role"] == "user", f"Last message must be from user, got {dialog[-1]['role']}"
-        segments_id = sum(
-            [
-                self.encode_paragraph(
-                    f"{self.b_inst_token} {(prompt['content']).strip()} {self.e_inst_token} {(answer['content']).strip()} ",
-                    bos=True,
-                    eos=True,
-                )
-                for prompt, answer in zip(dialog[::2], dialog[1::2])
-            ],
-            [],
+
+        paragraphs = [
+            self.chat_template['user_assistant'].format(user=prompt['content'].strip(), assistant=answer['content'].strip())
+            for prompt, answer in zip(dialog[::2], dialog[1::2])
+        ]
+
+        paragraphs.append(
+            self.chat_template['user'].format(user=dialog[-1]['content'].strip())
         )
 
-        segments_id += self.encode_paragraph(
-            f"{self.b_inst_token} {(dialog[-1]['content']).strip()} {self.e_inst_token}",
-            bos=True,
-            eos=False,
-        )
+        return paragraphs
+
+    def encode_segment(self, segment: List[str]) -> List[int]:
+        segments_id = sum([
+            self.encode_paragraph(
+                paragraph,
+                bos=True,
+                eos=i < len(segment) - 1,
+            )
+            for i, paragraph in enumerate(segment)
+        ], start=[])
+
         return segments_id
 
-    def encode_paragraph(self, paragraph, bos=True, eos=True):
+    def encode_paragraph(self, paragraph: str, bos=True, eos=True) -> List[int]:
+        # note, only can add sp id after encoding, cause sp_model can't encode the sp token to id
         segments_id = self.sp_model.encode(paragraph)
         if bos:
             segments_id = [self.bos_id] + segments_id
@@ -613,3 +664,134 @@ class LlamaTokenizer:
         elif isinstance(segments_ids, torch.Tensor):
             segments_ids = segments_ids.cpu().numpy().tolist()
         return self.sp_model.decode(segments_ids)
+
+
+class Qwen2VLTokenizer(GPT2Tokenizer):
+    sp_token_dict = dict(
+        unk="<|endoftext|>",
+        eos="<|im_end|>",
+        pad="<|endoftext|>",
+        im_start='<|im_start|>',
+        im_end='<|im_end|>',
+        object_ref_start='<|object_ref_start|>',
+        object_ref_end='<|object_ref_end|>',
+        box_start='<|box_start|>',
+        box_end='<|box_end|>',
+        quad_start='<|quad_start|>',
+        quad_end='<|quad_end|>',
+        vision_start='<|vision_start|>',
+        vision_end='<|vision_end|>',
+        vision_pad='<|vision_pad|>',
+        image_pad='<|image_pad|>',
+        video_pad='<|video_pad|>',
+    )
+
+    sp_id_dict = dict(
+        unk=151643,
+        eos=151645,
+        pad=151643,
+        im_start=151644,
+        im_end=151645,
+        object_ref_start=151646,
+        object_ref_end=151647,
+        box_start=151648,
+        box_end=151649,
+        quad_start=151650,
+        quad_end=151651,
+        vision_start=151652,
+        vision_end=151653,
+        vision_pad=151654,
+        image_pad=151655,
+        video_pad=151656,
+    )
+
+    regex_str = "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
+    max_seq_len = 32768
+
+    @property
+    def chat_template(self):
+        return dict(
+            # <|im_start|>{role}\n{content}<|im_end|>
+            content=f'{self.im_start_token}{{role}}\n{{content}}{self.im_end_token}',
+            # <|vision_start|>{vision}<|vision_end|>
+            vision=f'{self.vision_start_token}{{vision}}{self.vision_end_token}',
+        )
+
+    def encode_dialog(self, dialog: List[Dict], **kwargs) -> List[int]:
+        """
+        dialog format:
+        ```
+        [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "image": np.ndarray,
+                },
+                {
+                    "type": "text",
+                    "text": str
+                },
+            ],
+        }]
+        ```
+        """
+        segment = self.dialog_to_segment(dialog, **kwargs)
+        return self.encode_segment(segment)
+
+    def dialog_to_segment(self, dialog: List[Dict], image_grid_thw=(), video_grid_thw=(), merge_length=4, add_vision_id=False) -> List[str]:
+        """
+        note, only base on `xxB-instruct` model, not `xxB` model
+
+        content format after converted mostly like that:
+            <|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n<|vision_start|>{image_pad_token}<|vision_end|>{question}<|im_end|>\n<|im_start|>assistant
+        """
+
+        image_count = 0
+        video_count = 0
+
+        if dialog[0]["role"] != "system":
+            dialog = [{
+                "role": "system",
+                "content": "You are a helpful assistant."
+            }] + dialog
+
+        segment = []
+        for d in dialog:
+            content = d['content']
+            role = d['role']
+
+            if not isinstance(d['content'], str):
+                content = ''
+                for content_ in d['content']:
+                    if content_['type'] == 'image' or 'image' in content_ or 'image_url' in content_:
+                        if add_vision_id:
+                            content += f'Picture {image_count}'
+
+                        grid_thw = image_grid_thw[image_count]
+                        l = grid_thw[0] * grid_thw[1] * grid_thw[2] // merge_length
+                        content += self.chat_template['vision'].format(vision=self.image_pad_token * l)
+                        image_count += 1
+
+                    elif content_['type'] == 'video' or 'video' in content_:
+                        if add_vision_id:
+                            content += f'Video {video_count}'
+
+                        grid_thw = video_grid_thw[video_count]
+                        l = grid_thw[0] * grid_thw[1] * grid_thw[2] // merge_length
+                        content += self.chat_template['vision'].format(vision=self.video_pad_token * l)
+                        video_count += 1
+
+                    elif 'text' in content_:
+                        content += content_['text']
+
+            segment.append(self.chat_template['content'].format(content=content, role=role))
+
+        segment.append('<|im_start|>assistant\n')
+        return segment
+
+    def encode_segment(self, segment: List[str]) -> List[int]:
+        paragraph = '\n'.join(segment)
+        segments = self.spliter.from_paragraphs([paragraph])
+        return self.encode_segments(segments)['segments_ids'][0]
+

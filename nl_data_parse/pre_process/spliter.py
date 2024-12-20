@@ -8,6 +8,7 @@ paragraphs (List[str]):
     e.g.: ['hello world!', 'hello python!']
 paragraph (str)
     one paragraph can be an article
+    e.g.: 'hello world!'
 chunked_paragraphs (List[str]):
     each line has the same length as paragraphs as possibly, each itme in list is a str line
     e.g.: ['hello world! hello python!']
@@ -16,6 +17,7 @@ segments (List[List[str]]):
     e.g.: [['hello', 'world!'], ['hello', 'python!']]
 segment (List[str])
     one segment can be a paragraphs
+    e.g.: ['hello', 'world!']
 chunked_segments (List[List[str]]):
     each line has the same length as segments as possibly, each itme in list is a cut word list
     e.g.: [['hello', 'world!', 'hello', 'python!']]
@@ -85,7 +87,7 @@ class ToSegment:
         """
         sp_pattern = []
         for s in sp_tokens:
-            for a in '\\[]{}.*?':
+            for a in '\\[]{}.*?|':
                 s = s.replace(a, '\\' + a)
             sp_pattern.append(s)
         self.sp_tokens = sp_tokens
@@ -153,7 +155,7 @@ class ToSegment:
         >>> ToSegment(sep='!').shallow_split(text)
         ['hello world1.hello world2', 'hello world3', '']
 
-        >>> ToSegment(sep_pattern='.*?[.!]').shallow_split(text)
+        >>> ToSegment(sep_pattern=r'.*?[\.!]').shallow_split(text)
         ['hello world1.', 'hello world2!', 'hello world3!']
         """
         if self.sep == '':
