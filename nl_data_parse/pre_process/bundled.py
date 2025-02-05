@@ -81,7 +81,7 @@ class BertTokenizer:
         self.perturbation = perturbation.RandomMask(self.word_dict, self.sp_id_dict, self.total_sp_token_dict)
 
     @classmethod
-    def from_pretrain(cls, vocab_fn, **kwargs):
+    def from_pretrained(cls, vocab_fn, **kwargs):
         # note, vocab must be with word piece, e.g. uncased_L-12_H-768_A-12/vocab.txt
         # https://github.com/google-research/bert to get more details
         vocab = os_lib.loader.auto_load(vocab_fn)
@@ -193,7 +193,7 @@ class GPT2Tokenizer:
         self.__dict__.update({f'{k}_id': v for k, v in self.sp_id_dict.items()})
 
     @classmethod
-    def from_pretrain(cls, encoder_path, vocab_path, **kwargs):
+    def from_pretrained(cls, encoder_path, vocab_path, **kwargs):
         """
 
         Args:
@@ -246,7 +246,7 @@ class T5Tokenizer:
         self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
 
     @classmethod
-    def from_pretrain(cls, vocab_path, **kwargs):
+    def from_pretrained(cls, vocab_path, **kwargs):
         """
 
         Args:
@@ -259,17 +259,17 @@ class T5Tokenizer:
         sp_model = SentencePieceProcessor(model_file=vocab_path)
         return cls(sp_model, **kwargs)
 
-    def encode(self, paragraphs):
+    def encode_paragraphs(self, paragraphs, auto_pad=True):
         segments_ids = self.sp_model.encode(paragraphs)
         valid_segment_tags = [[True] * len(seg) for seg in segments_ids]
         seq_lens = [len(t) for t in segments_ids]
         segments_ids = snack.align(
             segments_ids, self.max_seq_len,
-            end_obj=self.eos_id, pad_obj=self.pad_id
+            end_obj=self.eos_id, pad_obj=self.pad_id, auto_pad=auto_pad
         )
         valid_segment_tags = snack.align(
             valid_segment_tags, max_seq_len=self.max_seq_len,
-            end_obj=True, pad_obj=False
+            end_obj=True, pad_obj=False, auto_pad=auto_pad
         )
 
         return dict(
@@ -349,28 +349,36 @@ class CLIPTokenizer:
         return list(word[:-1]) + [word[-1] + self.word_suffix]
 
     @classmethod
-    def from_pretrain(cls, encoder_path, vocab_path, **kwargs):
+    def from_pretrained(cls, encoder_path, vocab_path, **kwargs):
+        """
+
+        Args:
+            encoder_path: e.g. 'xxx/vocab.json'
+            vocab_path: e.g. 'xxx/merges.txt'
+            **kwargs:
+
+        """
         word_dict = os_lib.loader.load_json(encoder_path)
         byte_pairs = os_lib.loader.load_txt(vocab_path)
         byte_pairs = byte_pairs[1:]
         return cls(byte_pairs, word_dict, **kwargs)
 
-    def encode_paragraphs(self, paragraphs):
+    def encode_paragraphs(self, paragraphs, auto_pad=False):
         segments = self.spliter.from_paragraphs(paragraphs)
-        r = self.encode_segments(segments)
+        r = self.encode_segments(segments, auto_pad=auto_pad)
         return r
 
-    def encode_segments(self, segments):
+    def encode_segments(self, segments, auto_pad=False):
         valid_segment_tags = [[True] * len(seg) for seg in segments]
         valid_segment_tags = snack.align(
             valid_segment_tags, max_seq_len=self.max_seq_len,
-            start_obj=True, end_obj=True, pad_obj=False, auto_pad=False,
+            start_obj=True, end_obj=True, pad_obj=False, auto_pad=auto_pad,
         )
 
         segments_ids = self.numerizer.encode(segments)
         seq_lens = [len(t) for t in segments_ids]
         segments_ids = snack.align(
-            segments_ids, max_seq_len=self.max_seq_len, auto_pad=False,
+            segments_ids, max_seq_len=self.max_seq_len, auto_pad=auto_pad,
             start_obj=self.bos_id,
             end_obj=self.eos_id,
             pad_obj=self.pad_id,
@@ -382,7 +390,7 @@ class CLIPTokenizer:
             valid_segment_tags=valid_segment_tags
         )
 
-    def encode_attention_paragraphs(self, paragraphs):
+    def encode_attention_paragraphs(self, paragraphs, auto_pad=False):
         _paragraphs, _weights, idx = [], [], []
         for i, paragraph in enumerate(paragraphs):
             for p, weight in self.parse_prompt_attention(paragraph):
@@ -414,14 +422,14 @@ class CLIPTokenizer:
         segments_weights.append(tmp_weights)
 
         segments_ids = snack.align(
-            segments_ids, max_seq_len=self.max_seq_len, auto_pad=False,
+            segments_ids, max_seq_len=self.max_seq_len, auto_pad=auto_pad,
             start_obj=self.bos_id,
             end_obj=self.eos_id,
             pad_obj=self.pad_id,
         )
 
         segments_weights = snack.align(
-            segments_weights, max_seq_len=self.max_seq_len, auto_pad=False,
+            segments_weights, max_seq_len=self.max_seq_len, auto_pad=auto_pad,
             start_obj=1.,
             end_obj=1.,
             pad_obj=1.,
@@ -561,7 +569,7 @@ class LlamaTokenizer:
         )
 
     @classmethod
-    def from_pretrain(cls, vocab_path, **kwargs):
+    def from_pretrained(cls, vocab_path, **kwargs):
         """
 
         Args:
