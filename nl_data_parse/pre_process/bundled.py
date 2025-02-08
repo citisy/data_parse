@@ -173,7 +173,7 @@ class GPT2Tokenizer:
     regex_str = r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
     def __init__(self, byte_pairs, word_dict, **kwargs):
-        import regex    # note, do not use `re` mudule
+        import regex  # note, do not use `re` mudule
 
         self.__dict__.update(kwargs)
 
@@ -193,17 +193,17 @@ class GPT2Tokenizer:
         self.__dict__.update({f'{k}_id': v for k, v in self.sp_id_dict.items()})
 
     @classmethod
-    def from_pretrained(cls, encoder_path, vocab_path, **kwargs):
+    def from_pretrained(cls, vocab_fn, encoder_fn, **kwargs):
         """
 
         Args:
-            encoder_path: 'xxx/vocab.json'
-            vocab_path: 'xxx/merges.txt'
+            vocab_fn: 'xxx/vocab.json'
+            encoder_fn: 'xxx/merges.txt'
             **kwargs:
 
         """
-        word_dict = os_lib.loader.load_json(encoder_path)
-        byte_pairs = os_lib.loader.load_txt(vocab_path)
+        word_dict = os_lib.loader.load_json(vocab_fn)
+        byte_pairs = os_lib.loader.load_txt(encoder_fn)
         byte_pairs = byte_pairs[1:]
         return cls(byte_pairs, word_dict, **kwargs)
 
@@ -231,33 +231,56 @@ class T5Tokenizer:
         **additional_sp_token_dict
     }
 
-    def __init__(self, sp_model: 'SentencePieceProcessor', max_seq_len=512, **kwargs):
+    def __init__(self, sp_model: 'SentencePieceProcessor', vocabs, max_seq_len=512, **kwargs):
         self.max_seq_len = max_seq_len
         self.sp_model = sp_model
         # note, there are 32000 in sp_model.vocab_size(), and 100 in additional_sp_token,
         # but got vocab_size of 32128 by official T5 model, so doubtful how to get the number
         # self.vocab_size: int = self.sp_model.vocab_size()
         self.vocab_size: int = 32128
+
+        sp_token_dict = {}
+        sp_id_dict = {}
+        added_tokens = vocabs['added_tokens']
+        for d in added_tokens:
+            k = d['content'][1:-1]
+            sp_token_dict[k] = d['content']
+            sp_id_dict[k] = d['id']
+
+        sp_id_to_token_dict = {}
+        for k, _id in sp_id_dict.items():
+            sp_id_to_token_dict[_id] = sp_token_dict[k]
+
+        self.sp_token_dict = sp_token_dict
+        self.sp_id_dict = sp_id_dict
+        self.sp_id_to_token_dict = sp_id_to_token_dict
+
         self.bos_id: int = self.sp_model.bos_id()
         self.eos_id: int = self.sp_model.eos_id()
         self.pad_id: int = self.sp_model.pad_id()
+        self.unk_id: int = self.sp_model.unk_id()
+
+        self.eos_token: str = sp_id_to_token_dict[self.eos_id]
+        self.pad_token: str = sp_id_to_token_dict[self.pad_id]
+        self.unk_token: str = sp_id_to_token_dict[self.unk_id]
 
         self.__dict__.update(kwargs)
-        self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
 
     @classmethod
-    def from_pretrained(cls, vocab_path, **kwargs):
+    def from_pretrained(cls, vocab_fn, encoder_fn, **kwargs):
         """
 
         Args:
-            vocab_path: 'xxx/tokenizer.model'
+            vocab_fn: 'xxx/tokenizer.json'
+            encoder_fn: 'xxx/spiece.model'
             **kwargs:
 
         """
-        from sentencepiece import SentencePieceProcessor    # pip install sentencepiece
+        from sentencepiece import SentencePieceProcessor  # pip install sentencepiece
 
-        sp_model = SentencePieceProcessor(model_file=vocab_path)
-        return cls(sp_model, **kwargs)
+        vocabs = os_lib.loader.load_json(vocab_fn)
+        sp_model = SentencePieceProcessor(model_file=encoder_fn)
+        return cls(sp_model, vocabs, **kwargs)
 
     def encode_paragraphs(self, paragraphs, auto_pad=True):
         segments_ids = self.sp_model.encode(paragraphs)
@@ -279,11 +302,35 @@ class T5Tokenizer:
         )
 
     def decode(self, segments_ids):
+        """
+        Args:
+            segments_ids (list|np.ndarray|torch.Tensor): bust be a 2-D obj
+
+        """
         if isinstance(segments_ids, np.ndarray):
             segments_ids = segments_ids.tolist()
         elif isinstance(segments_ids, torch.Tensor):
             segments_ids = segments_ids.cpu().numpy().tolist()
-        return self.sp_model.decode(segments_ids)
+
+        segments = []
+        for segments_id in segments_ids:
+            seg = []
+            tmp = []
+            for _id in segments_id:
+                if _id in self.sp_id_to_token_dict:
+                    if tmp:
+                        seg.append(self.sp_model.decode(tmp))
+                    seg.append(self.sp_id_to_token_dict[_id])
+                    tmp = []
+                else:
+                    tmp.append(_id)
+
+            if tmp:
+                seg.append(self.sp_model.decode(tmp))
+
+            segments.append(' '.join(seg))
+
+        return segments
 
 
 class CLIPTokenizer:
@@ -349,17 +396,17 @@ class CLIPTokenizer:
         return list(word[:-1]) + [word[-1] + self.word_suffix]
 
     @classmethod
-    def from_pretrained(cls, encoder_path, vocab_path, **kwargs):
+    def from_pretrained(cls, vocab_fn, encoder_fn, **kwargs):
         """
 
         Args:
-            encoder_path: e.g. 'xxx/vocab.json'
-            vocab_path: e.g. 'xxx/merges.txt'
+            vocab_fn: e.g. 'xxx/vocab.json'
+            encoder_fn: e.g. 'xxx/merges.txt'
             **kwargs:
 
         """
-        word_dict = os_lib.loader.load_json(encoder_path)
-        byte_pairs = os_lib.loader.load_txt(vocab_path)
+        word_dict = os_lib.loader.load_json(vocab_fn)
+        byte_pairs = os_lib.loader.load_txt(encoder_fn)
         byte_pairs = byte_pairs[1:]
         return cls(byte_pairs, word_dict, **kwargs)
 
@@ -549,7 +596,7 @@ class LlamaTokenizer:
     def __init__(self, sp_model: 'SentencePieceProcessor', max_seq_len=512, **kwargs):
         self.max_seq_len = max_seq_len
         self.sp_model = sp_model
-        self.vocab_size: int = self.sp_model.vocab_size()   # 32000
+        self.vocab_size: int = self.sp_model.vocab_size()  # 32000
         self.bos_id: int = self.sp_model.bos_id()  # 1
         self.eos_id: int = self.sp_model.eos_id()  # 2
         self.pad_id: int = self.sp_model.pad_id()  # -1
@@ -569,17 +616,17 @@ class LlamaTokenizer:
         )
 
     @classmethod
-    def from_pretrained(cls, vocab_path, **kwargs):
+    def from_pretrained(cls, vocab_fn, **kwargs):
         """
 
         Args:
-            vocab_path: 'xxx/tokenizer.model'
+            vocab_fn: 'xxx/tokenizer.model'
             **kwargs:
 
         """
         from sentencepiece import SentencePieceProcessor  # pip install sentencepiece
 
-        sp_model = SentencePieceProcessor(model_file=vocab_path)
+        sp_model = SentencePieceProcessor(model_file=vocab_fn)
         return cls(sp_model, **kwargs)
 
     def encode_dialogs(self, dialogs: List[List[Dict]]) -> dict:
@@ -803,4 +850,3 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
         paragraph = '\n'.join(segment)
         segments = self.spliter.from_paragraphs([paragraph])
         return self.encode_segments(segments)['segments_ids'][0]
-
