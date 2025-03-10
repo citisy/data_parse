@@ -1,5 +1,5 @@
 from tqdm import tqdm
-from .. import DataRegister
+from data_parse import DataRegister
 from utils import os_lib, converter, visualize
 
 

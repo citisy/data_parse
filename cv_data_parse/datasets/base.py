@@ -8,7 +8,7 @@ from collections import defaultdict
 from utils import os_lib, converter, visualize, cv_utils
 from typing import List
 from numbers import Number
-from .. import DataRegister
+from data_parse import DataRegister
 
 
 def get_image(obj: str, image_type):

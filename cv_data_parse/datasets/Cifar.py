@@ -1,7 +1,7 @@
 import pickle
 import numpy as np
 from .base import DataLoader, DataRegister
-from .data_augmentation.channel import CHW2HWC
+from data_parse.cv_data_parse.data_augmentation.channel import CHW2HWC
 
 chw2hwc = CHW2HWC()
 

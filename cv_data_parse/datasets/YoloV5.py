@@ -1,10 +1,11 @@
 import os
-import numpy as np
 from pathlib import Path
-from tqdm import tqdm
 from typing import Iterable
+
+import numpy as np
+
 from utils import os_lib
-from .base import DataRegister, DataLoader, DataSaver, DatasetGenerator, get_image, save_image, DataVisualizer
+from .base import DataRegister, DataLoader, DataSaver, DatasetGenerator, get_image, save_image
 
 
 class Loader(DataLoader):
@@ -27,8 +28,9 @@ class Loader(DataLoader):
 
             # get data
             from data_parse.cv_data_parse.YoloV5 import DataRegister, Loader, DataVisualizer
-            from utils import converter
+            from utils import os_lib, cv_utils
             from pathlib import Path
+            import numpy as np
 
             def convert_func(ret):
                 if isinstance(ret['image'], np.ndarray):
@@ -38,16 +40,16 @@ class Loader(DataLoader):
                 return ret
 
             def filter_func(ret):
-                x = Path(ret['image'])
+                x = Path(ret['image_path'])
                 if x.stem in filter_list:
-                    image = os_lib.loader.load_img(str(x))
                     # ret['bboxes'] = cv_utils.CoordinateConvert.mid_xywh2top_xyxy(ret['bboxes'], wh=(image.shape[1], image.shape[0]), blow_up=True)
                     checkout_visualizer([ret], cls_alias=cls_alias)
                     return False
 
                 return True
 
-            loader = Loader('data/Yolov5Data')
+            data_dir = 'data/Yolov5Data'
+            loader = Loader(data_dir)
 
             # as standard datasets, the bboxes type is abs top xyxy usually,
             # but as yolov5 official, the bboxes ref center xywh,
@@ -57,17 +59,18 @@ class Loader(DataLoader):
             # filter picture which is in the filter list, and checkout them
             filter_list = list()
             cls_alias = dict()
-            checkout_visualizer = DataVisualizer('data/Yolov5Data/visuals/filter_samples', verbose=False)
+            checkout_visualizer = DataVisualizer(f'{data_dir}/visuals/filter_samples', verbose=False)
             loader.on_end_filter = filter_func
 
-            data = loader(set_type=DataRegister.FULL, generator=True, image_type=DataRegister.PATH)
+            data = loader(set_type=DataRegister.FULL, generator=True, image_type=DataRegister.ARRAY)
 
-            # visual train dataset
-            DataVisualizer('data/Yolov5Data/visuals', verbose=False)(data[0])
-
+            # visual dataset
+            for iter_data in data:
+                DataVisualizer(f'{data_dir}/visuals', verbose=False)(iter_data)
     """
 
-    image_suffix = '.png'
+    image_suffixes = os_lib.suffixes_dict['img']
+    label_suffix = '.txt'
 
     def _call(self, set_type=DataRegister.TRAIN, **gen_kwargs):
         """
@@ -102,7 +105,7 @@ class Loader(DataLoader):
         Returns:
 
         """
-        gen_func = Path(f'{self.data_dir}/images/{task}').glob(f'*{self.image_suffix}')
+        gen_func = os_lib.find_all_suffixes_files(f'{self.data_dir}/images/{task}', self.image_suffixes)
         return self.gen_data(gen_func, **gen_kwargs)
 
     def load_set(self, set_type=DataRegister.TRAIN, set_task='', sub_dir='image_sets', **gen_kwargs):
@@ -140,7 +143,7 @@ class Loader(DataLoader):
         image_path = os.path.abspath(fp)
         img_fp = Path(image_path)
         image = get_image(image_path, image_type)
-        label_path = image_path.replace('images', 'labels').replace(self.image_suffix, '.txt')
+        label_path = image_path.replace('images', 'labels').replace(img_fp.suffix, self.label_suffix)
 
         if not os.path.exists(label_path):
             self.stdout_method(f'{label_path} not exist!')
@@ -159,20 +162,23 @@ class Loader(DataLoader):
             image=image,
             bboxes=bboxes,
             classes=classes,
+            image_path=image_path,
+            label_path=label_path
         )
 
 
 class LoaderFull(DataLoader):
     image_suffix = '.png'
+    label_suffix = '.txt'
 
     def _call(self, task='', sub_dir='full_labels', **gen_kwargs):
         """format of saved label txt like (class, x1, y1, x2, y2, conf, w, h)
         only return labels but no images. can use _id to load images"""
-        gen_func = Path(f'{self.data_dir}/{sub_dir}/{task}').glob('*.txt')
+        gen_func = Path(f'{self.data_dir}/{sub_dir}/{task}').glob(f'*{self.label_suffix}')
         return self.gen_data(gen_func, task=task, sub_dir=sub_dir, **gen_kwargs)
 
     def get_ret(self, fp, task='', sub_dir='', **kwargs) -> dict:
-        img_fp = Path(str(fp).replace('.txt', '.png').replace(sub_dir, 'images'))
+        img_fp = Path(str(fp).replace(self.label_suffix, self.image_suffix).replace(sub_dir, 'images'))
 
         # (class, x1, y1, x2, y2, conf, w, h)
         labels = np.genfromtxt(fp)
@@ -318,8 +324,8 @@ class SaverFull(DataSaver):
 
 
 class Generator(DatasetGenerator):
-    image_suffix = '.png'
-    label_suffix = '.txt'
+    image_suffixes = os_lib.suffixes_dict['img']
+    label_suffixes = os_lib.suffixes_dict['txt']
 
     def gen_sets(self, label_dirs=(), image_dirs=(), save_dir='', set_task='',
                  id_distinguish='', id_sort=False,
@@ -357,6 +363,7 @@ class Generator(DatasetGenerator):
                 data_dir = 'data/yolov5'
                 gen = Generator(
                     data_dir=data_dir,
+                    image_dir=f'{data_dir}/images/1',
                     label_dir=f'{data_dir}/labels/1',
                 )
                 gen.gen_sets(set_task='1')
@@ -364,6 +371,7 @@ class Generator(DatasetGenerator):
                 # multi data dir
                 gen = Generator()
                 gen.gen_sets(
+                    image_dir=('data/yolov5_0/images', 'data/yolov5_1/images'),
                     label_dirs=('data/yolov5_0/labels', 'data/yolov5_1/labels'),
                     save_dir='data/yolov5_0_1/image_sets'
                 )
@@ -381,18 +389,18 @@ class Generator(DatasetGenerator):
 
         if label_dirs:
             for label_dir in label_dirs:
-                tmp = list(Path(label_dir).glob(f'*{self.label_suffix}'))
+                tmp = list(os_lib.find_all_suffixes_files(label_dir, self.label_suffixes))
                 tmp = [x for x in tmp if self.filter_func(x)]
 
                 if id_distinguish:
                     idx += [i.stem for i in tmp]
 
-                tmp = [os.path.abspath(str(i).replace(self.label_suffix, self.image_suffix)) for i in tmp]
+                tmp = [os.path.abspath(str(i).replace(i.suffix, self.image_suffixes[0])) for i in tmp]
                 data += tmp
 
         else:
             for image_dir in image_dirs:
-                tmp = list(Path(image_dir).glob(f'*{self.image_suffix}'))
+                tmp = list(os_lib.find_all_suffixes_files(image_dir, self.image_suffixes))
                 tmp = [x for x in tmp if self.filter_func(x)]
 
                 if id_distinguish:
