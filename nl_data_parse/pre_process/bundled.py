@@ -773,7 +773,31 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
             vision=f'{self.vision_start_token}{{vision}}{self.vision_end_token}',
         )
 
-    def encode_dialog(self, dialog: List[Dict], **kwargs) -> List[int]:
+    @staticmethod
+    def patch_image(patches, temporal_patch_size=2, patch_size=14, merge_size=2):
+        c, h, w = patches.shape
+        patches = np.tile(patches, (temporal_patch_size, 1, 1, 1))
+        pc = patches.shape[1]
+        grid_t = patches.shape[0] // temporal_patch_size
+        grid_h, grid_w = h // patch_size, w // patch_size
+        patches = patches.reshape(
+            grid_t,
+            temporal_patch_size,
+            pc,
+            grid_h // merge_size,
+            merge_size,
+            patch_size,
+            grid_w // merge_size,
+            merge_size,
+            patch_size,
+        )
+        patches = patches.transpose(0, 3, 6, 4, 7, 2, 1, 5, 8)
+        flatten_patches = patches.reshape(
+            grid_t * grid_h * grid_w, pc * temporal_patch_size * patch_size * patch_size
+        )
+        return flatten_patches, (grid_t, grid_h, grid_w)
+
+    def encode_dialog(self, dialog: List[Dict], **kwargs) -> dict:
         """
         dialog format:
         ```
@@ -792,10 +816,11 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
         }]
         ```
         """
-        segment = self.dialog_to_segment(dialog, **kwargs)
-        return self.encode_segment(segment)
+        ret = self.dialog_to_segment(dialog, **kwargs)
+        ret.update(self.encode_segment(ret['segment']))
+        return ret
 
-    def dialog_to_segment(self, dialog: List[Dict], image_grid_thw=(), video_grid_thw=(), merge_length=4, add_vision_id=False) -> List[str]:
+    def dialog_to_segment(self, dialog: List[Dict], merge_length=4, add_vision_id=False) -> dict:
         """
         note, only base on `xxB-instruct` model, not `xxB` model
 
@@ -813,6 +838,9 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
             }] + dialog
 
         segment = []
+        image_pixel_values = []
+        image_grid_thw = []
+
         for d in dialog:
             content = d['content']
             role = d['role']
@@ -824,19 +852,26 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
                         if add_vision_id:
                             content += f'Picture {image_count}'
 
-                        grid_thw = image_grid_thw[image_count]
+                        if 'image_url' in content_:
+                            raise NotImplementedError
+
+                        pixel_value, grid_thw = self.encode_image(content_['image'])
+
                         l = grid_thw[0] * grid_thw[1] * grid_thw[2] // merge_length
                         content += self.chat_template['vision'].format(vision=self.image_pad_token * l)
+                        image_pixel_values.append(pixel_value)
+                        image_grid_thw.append(grid_thw)
                         image_count += 1
 
                     elif content_['type'] == 'video' or 'video' in content_:
-                        if add_vision_id:
-                            content += f'Video {video_count}'
-
-                        grid_thw = video_grid_thw[video_count]
-                        l = grid_thw[0] * grid_thw[1] * grid_thw[2] // merge_length
-                        content += self.chat_template['vision'].format(vision=self.video_pad_token * l)
-                        video_count += 1
+                        raise NotImplementedError
+                        # if add_vision_id:
+                        #     content += f'Video {video_count}'
+                        #
+                        # grid_thw = video_grid_thw[video_count]
+                        # l = grid_thw[0] * grid_thw[1] * grid_thw[2] // merge_length
+                        # content += self.chat_template['vision'].format(vision=self.video_pad_token * l)
+                        # video_count += 1
 
                     elif 'text' in content_:
                         content += content_['text']
@@ -844,9 +879,20 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
             segment.append(self.chat_template['content'].format(content=content, role=role))
 
         segment.append('<|im_start|>assistant\n')
-        return segment
+        return dict(
+            segments=segment,
+            image_pixel_values=image_pixel_values,
+            image_grid_thw=image_grid_thw
+        )
 
-    def encode_segment(self, segment: List[str]) -> List[int]:
+    def encode_image(self, image):
+        if not isinstance(image, np.ndarray):
+            image = os_lib.loader.load_img(image)
+
+        pixel_value, grid_thw = self.patch_image(image, temporal_patch_size=2, patch_size=14, merge_size=2)
+        return pixel_value, grid_thw
+
+    def encode_segment(self, segment: List[str]):
         paragraph = '\n'.join(segment)
         segments = self.spliter.from_paragraphs([paragraph])
         return self.encode_segments(segments)['segments_ids'][0]
