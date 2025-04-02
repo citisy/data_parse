@@ -15,7 +15,7 @@ def get_image(obj: str, image_type):
     if image_type == DataRegister.PATH:
         image = obj
     elif image_type == DataRegister.ARRAY:
-        image = cv2.imread(obj)
+        image = os_lib.loader.load_img(obj)
     elif image_type == DataRegister.GRAY_ARRAY:
         image = cv2.imread(obj, cv2.IMREAD_GRAYSCALE)
     elif image_type == DataRegister.NPY:
@@ -333,6 +333,7 @@ class DataSaver:
 class DatasetGenerator:
     """generate datasets for training, testing and valuating"""
     image_suffix = '.jpg'
+    image_suffixes = os_lib.suffixes_dict['img']
 
     def __init__(self, data_dir=None, image_dir=None, label_dir=None, verbose=True, stdout_method=print):
         self.data_dir = data_dir
@@ -345,10 +346,10 @@ class DatasetGenerator:
         """please implement this function"""
         return self._gen_sets(**kwargs)
 
-    @staticmethod
     def _gen_sets(
-            iter_data, idx=None, id_distinguish='', id_sort=False, save_dir=None,
-            set_names=('train', 'test'), split_ratio=(0.8, 1.), **kwargs
+            self,
+            iter_data, idx=None, id_distinguish='', id_sort=False,
+            set_names=('train', 'test'), split_ratio=(0.8, 1.), **save_kwargs
     ):
         """
 
@@ -364,7 +365,7 @@ class DatasetGenerator:
             split_ratio:
                 split ratio for each set, the shape must apply for set_names
                 if id_distinguish is set, the ration is num of ids not files
-            **kwargs:
+            **save_kwargs:
 
         Returns:
 
@@ -401,9 +402,7 @@ class DatasetGenerator:
                 if not id_sort:
                     np.random.shuffle(candidate_ids)
 
-                with open(f'{save_dir}/{set_name}.txt', 'w', encoding='utf8') as f:
-                    for candidate_id in candidate_ids:
-                        f.write(iter_data[candidate_id] + '\n')
+                self.save_func(iter_data, candidate_ids, set_name, **save_kwargs)
 
                 i = j
 
@@ -413,10 +412,13 @@ class DatasetGenerator:
             i = 0
             for j, set_name in zip(split_ratio, set_names):
                 j = int(j * len(iter_data))
-                with open(f'{save_dir}/{set_name}.txt', 'w', encoding='utf8') as f:
-                    f.write('\n'.join(iter_data[i:j]))
+                candidate_ids = list(range(i, j))
+                self.save_func(iter_data, candidate_ids, set_name, **save_kwargs)
 
                 i = j
+
+    def save_func(self, iter_data, candidate_ids, set_name, **kwargs):
+        raise NotImplementedError
 
     def filter_func(self, x):
         return True

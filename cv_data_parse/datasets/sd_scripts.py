@@ -33,9 +33,9 @@ class Loader(DataLoader):
     def _call(self, task='original', **gen_kwargs):
         def gen_func():
             for fp1 in Path(f'{self.data_dir}/{task}').glob('*'):
-                # repeat, subtask = fp1.name.split('_', 1)
-                for fp2 in fp1.glob('*'):
-                    if fp2.suffix in self.image_suffixes:
+                repeat, _ = fp1.name.split('_', 1)
+                for fp2 in os_lib.find_all_suffixes_files(fp1, self.image_suffixes):
+                    for _ in range(repeat):
                         yield fp2
 
         return self.gen_data(gen_func(), **gen_kwargs)

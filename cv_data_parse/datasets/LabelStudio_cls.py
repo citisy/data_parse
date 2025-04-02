@@ -15,13 +15,13 @@ class Loader(DataLoader):
     Data structure:
         .
         ├── images
-        │   └── [set_task]
         └── [set_task].json
 
     """
 
     image_suffix = '.png'
     classes = []
+    default_set_type = [DataRegister.MIX]
 
     def _call(self, set_task='label_studio', **kwargs):
         with open(f'{self.data_dir}/{set_task}.json', 'r', encoding='utf8') as f:
@@ -36,27 +36,18 @@ class Loader(DataLoader):
         image_path = os.path.abspath(image_path)
         image = get_image(image_path, image_type)
 
-        bboxes = []
         classes = []
         for a in js['annotations']:
             for r in a['result']:
                 v = r['value']
-                bboxes.append([v['x'], v['y'], v['width'], v['height']])
-                classes.append(self.classes.index(v['rectanglelabels'][0]))
-                size = (r['original_height'], r['original_width'], 3)
-
-        bboxes = np.array(bboxes)
-        bboxes /= 100
-        bboxes = cv_utils.CoordinateConvert.top_xywh2top_xyxy(bboxes, wh=(size[1], size[0]), blow_up=True)
-        classes = np.array(classes)
+                for c in v['choices']:
+                    classes.append(self.classes.index(c))
 
         return dict(
             _id=_id,
             sub_id=sub_id,
             image_root=image_root,
             image=image,
-            size=size,
-            bboxes=bboxes,
             classes=classes
         )
 
@@ -79,36 +70,17 @@ class Saver(DataSaver):
                 image_path = f'{self.data_dir}/images/{set_task}/{_id}'
                 save_image(image, image_path, image_type)
 
-            if 'size' in dic:
-                size = dic['size']
-            elif isinstance(image, np.ndarray):
-                size = image.shape[:2]
-            else:
-                raise 'must be set size or make image the type of np.ndarray'
-
-            bboxes = np.array(dic['bboxes']).reshape(-1, 4)
-            bboxes = cv_utils.CoordinateConvert.top_xyxy2top_xywh(bboxes, wh=(size[1], size[0]), blow_up=False)
-            bboxes *= 100
-            bboxes = bboxes.tolist()
             classes = dic['classes']
             if cls_alias:
                 classes = [cls_alias[i] for i in classes]
 
             result = []
-            for box, cls in zip(bboxes, classes):
+            for cls in classes:
                 result.append(dict(
-                    original_width=size[1],
-                    original_height=size[0],
-                    image_rotation=0,
                     value=dict(
-                        x=box[0],
-                        y=box[1],
-                        width=box[2],
-                        height=box[3],
-                        rotation=0,
-                        rectanglelabels=[cls]
+                        choices=[cls],
                     ),
-                    type='rectanglelabels'
+                    type='choices'
                 ))
 
             rets.append(dict(

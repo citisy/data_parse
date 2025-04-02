@@ -250,4 +250,9 @@ class Generator(DatasetGenerator):
                         i, _ = line.split('\t', 1)
                         idx.append(i)
 
-        self._gen_sets(data, idx, id_distinguish, id_sort, save_dir, set_names, split_ratio)
+        self._gen_sets(data, idx, id_distinguish, id_sort, set_names, split_ratio, save_dir=save_dir)
+
+    def save_func(self, iter_data, candidate_ids, set_name, save_dir=None, **kwargs):
+        with open(f'{save_dir}/{set_name}.txt', 'w', encoding='utf8') as f:
+            data = [iter_data[candidate_id] for candidate_id in candidate_ids]
+            f.write('\n'.join(data))
