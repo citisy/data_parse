@@ -5,7 +5,7 @@ def enum_search(x):
     pass
 
 
-def greedy_search(x):
+def greedy_search(x, seq_lens, score_fn, **score_fn_kwargs):
     """
 
     Args:
@@ -13,36 +13,64 @@ def greedy_search(x):
 
     Returns:
         preds: (batch_size, beam_size, seq_length)
-        probs: (batch_size, beam_size)
 
     """
-    probs, preds = x.max(2)
-    return preds, probs
+    pass
 
 
-def beam_search(x, beam_size=4):
+def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, **score_fn_kwargs):
     """
 
     Args:
         x (torch.Tensor): (batch_size, seq_length, vocab_size) after log softmax
-        beam_size:
 
     Returns:
         preds: (batch_size, beam_size, seq_length)
-        probs: (batch_size, beam_size)
 
     """
-    batch, seq_len, vocab_size = x.shape
-    probs, pred = x[:, 0, :].topk(beam_size, sorted=True)
-    preds = pred.unsqueeze(-1)
-    for i in range(1, seq_len):
-        probs = probs.unsqueeze(-1) + x[:, i, :].unsqueeze(1).repeat(1, beam_size, 1)
-        probs, pred = probs.view(batch, -1).topk(beam_size, sorted=True)
-        idx = torch.div(pred, vocab_size, rounding_mode='trunc')
-        pred = pred % vocab_size
-        preds = torch.gather(preds, 1, idx.unsqueeze(-1).repeat(1, 1, i))
-        preds = torch.cat([preds, pred.unsqueeze(-1)], dim=-1)
-    return preds, probs
+    assert seq_lens is not None
+
+    batch_size = len(x)
+    eos_flag = [False] * batch_size
+
+    prev_pos = 0
+    min_pos = min(seq_lens)
+
+    for cur_pos in range(min_pos, min_pos + max_gen_len):
+        logits = score_fn(
+            x[:, prev_pos: cur_pos],
+            start_pos=prev_pos,
+            **score_fn_kwargs
+        )
+
+        x = torch.cat([x, torch.zeros((batch_size, 1)).to(x)], dim=-1)
+
+        for index in range(batch_size):
+            if eos_flag[index]:
+                continue
+
+            if x[index][cur_pos] != 0:
+                continue
+
+            preds = logits[index, -1]
+            arg = torch.argsort(preds, descending=True)
+            keep = arg[:top_k]
+            preds = preds[keep]
+            preds = preds / preds.sum()
+
+            # random sampling
+            next_id = keep[preds.multinomial(1)[0]]
+            x[index][cur_pos] = next_id
+
+            if next_id in eos_ids:
+                eos_flag[index] = True
+
+        if all(eos_flag):
+            break
+
+        prev_pos = cur_pos
+
+    return x
 
 
 def prefix_beam_search(x):
