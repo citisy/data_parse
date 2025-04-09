@@ -218,6 +218,10 @@ class GPT2Tokenizer:
             seq_lens=seq_lens
         )
 
+    def decode_to_segments(self, segments_ids):
+        segments = self.numerizer.decode(segments_ids)
+        return segments
+
 
 class T5Tokenizer:
     additional_sp_token_dict = {f'extra_id_{i}': f'<extra_id_{i}>' for i in range(100)}
@@ -722,7 +726,72 @@ class LlamaTokenizer:
         return self.sp_model.decode(segments_ids)
 
 
-class Qwen2VLTokenizer(GPT2Tokenizer):
+class Qwen2Tokenizer(GPT2Tokenizer):
+    sp_token_dict = dict(
+        unk="<|endoftext|>",
+        pad="<|endoftext|>",
+        im_start='<|im_start|>',
+        im_end='<|im_end|>',
+    )
+
+    sp_id_dict = dict(
+        unk=151643,
+        pad=151643,
+        im_start=151644,
+        im_end=151645,
+    )
+
+    regex_str = "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
+    max_seq_len = 32768
+    default_system_content = 'You are a helpful assistant.'
+
+    @property
+    def chat_template(self):
+        return dict(
+            # <|im_start|>{role}\n{content}<|im_end|>
+            content=f'{self.im_start_token}{{role}}\n{{content}}{self.im_end_token}',
+        )
+
+    def encode_dialog(self, dialog: List[Dict], **kwargs) -> dict:
+        """
+        dialog format:
+        ```
+        [
+            {"role": "system", "content": ""},
+            {"role": "user", "content": ""}
+        ]
+        ```
+        """
+        ret = self.dialog_to_segment(dialog, **kwargs)
+        ret.update(self.encode_segment(ret.pop('segment')))
+        return ret
+
+    def dialog_to_segment(self, dialog: List[Dict], **kwargs) -> dict:
+        if dialog[0]["role"] != "system":
+            dialog = [{
+                "role": "system",
+                "content": self.default_system_content
+            }] + dialog
+
+        segment = []
+        for d in dialog:
+            content = d['content']
+            role = d['role']
+            segment.append(self.chat_template['content'].format(content=content, role=role))
+
+        segment.append('<|im_start|>assistant\n')
+
+        return dict(
+            segment=segment,
+        )
+
+    def encode_segment(self, segment: List[str]):
+        paragraph = '\n'.join(segment)
+        segments = self.spliter.from_paragraphs([paragraph])
+        return self.encode_segments(segments)
+
+
+class Qwen2VLTokenizer(Qwen2Tokenizer):
     sp_token_dict = dict(
         unk="<|endoftext|>",
         eos="<|im_end|>",
@@ -761,9 +830,6 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
         video_pad=151656,
     )
 
-    regex_str = "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
-    max_seq_len = 32768
-
     @property
     def chat_template(self):
         return dict(
@@ -797,7 +863,7 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
         )
         return flatten_patches, (grid_t, grid_h, grid_w)
 
-    def encode_dialog(self, dialog: List[Dict], **kwargs) -> dict:
+    def dialog_to_segment(self, dialog: List[Dict], merge_length=4, add_vision_id=False) -> dict:
         """
         dialog format:
         ```
@@ -815,13 +881,6 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
             ],
         }]
         ```
-        """
-        ret = self.dialog_to_segment(dialog, **kwargs)
-        ret.update(self.encode_segment(ret['segment']))
-        return ret
-
-    def dialog_to_segment(self, dialog: List[Dict], merge_length=4, add_vision_id=False) -> dict:
-        """
         note, only base on `xxB-instruct` model, not `xxB` model
 
         content format after converted mostly like that:
@@ -834,7 +893,7 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
         if dialog[0]["role"] != "system":
             dialog = [{
                 "role": "system",
-                "content": "You are a helpful assistant."
+                "content": self.default_system_content
             }] + dialog
 
         segment = []
@@ -880,7 +939,7 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
 
         segment.append('<|im_start|>assistant\n')
         return dict(
-            segments=segment,
+            segment=segment,
             image_pixel_values=image_pixel_values,
             image_grid_thw=image_grid_thw
         )
@@ -891,8 +950,3 @@ class Qwen2VLTokenizer(GPT2Tokenizer):
 
         pixel_value, grid_thw = self.patch_image(image, temporal_patch_size=2, patch_size=14, merge_size=2)
         return pixel_value, grid_thw
-
-    def encode_segment(self, segment: List[str]):
-        paragraph = '\n'.join(segment)
-        segments = self.spliter.from_paragraphs([paragraph])
-        return self.encode_segments(segments)['segments_ids'][0]
