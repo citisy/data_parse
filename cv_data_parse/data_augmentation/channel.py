@@ -16,7 +16,8 @@ class HWC2CHW:
         return image
 
     def restore(self, ret):
-        ret['image'] = CHW2HWC.apply_image(ret['image'])
+        if 'image' in ret:
+            ret['image'] = CHW2HWC.apply_image(ret['image'])
         return ret
 
 
@@ -97,6 +98,8 @@ class Keep3Dims:
         shape = image.shape
         if len(shape) == 2:
             image = image[:, :, None]
+        elif len(shape) == 3:
+            pass
         else:
             raise ValueError(f'Do not support shape = {shape}')
         return image

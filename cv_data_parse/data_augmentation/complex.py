@@ -1,6 +1,4 @@
 import numpy as np
-import cv2
-from metrics.object_detection import Iou
 
 
 class CopyPaste:
@@ -41,8 +39,8 @@ class MixUp:
         return np.random.beta(self.alpha, self.beta)  # mixup ratio, default alpha=beta=32.0
 
     def __call__(self, image_list, bboxes_list=None, classes_list=None, **kwargs):
-        """input image must have same shape"""
-        info = self.get_add_params(*self.get_params())
+        """input images must have the same shape"""
+        info = self.get_add_params(self.get_params())
         return dict(
             image=self.apply_image_list(image_list, info),
             bboxes=self.apply_bboxes_list(bboxes_list),
@@ -139,10 +137,13 @@ class Mosaic4:
         coors = self.get_params(image_list)
         info = self.get_add_params(coors)
 
+        image = self.apply_image_list(image_list, info)
+        bboxes, classes = self.apply_bboxes_classes_list(bboxes_list, classes_list, info)
+
         return dict(
-            image=self.apply_image_list(image_list, info),
-            bboxes=self.apply_bboxes_list(bboxes_list, info),
-            classes=self.apply_classes_list(classes_list),
+            image=image,
+            bboxes=bboxes,
+            classes=classes,
             **info
         )
 
@@ -156,24 +157,34 @@ class Mosaic4:
 
         return img4
 
-    def apply_bboxes_list(self, bboxes_list, ret):
+    def apply_bboxes_classes_list(self, bboxes_list, classes_list, ret):
         bboxes4 = None
+        classes4 = None
         if bboxes_list is not None:
             coors = self.parse_add_params(ret)
             bboxes4 = []
-            for bboxes, ((x1a, y1a, x2a, y2a), (x1b, y1b, x2b, y2b)) in zip(bboxes_list, coors):
+            classes4 = []
+            for i in range(len(bboxes_list)):
+                bboxes = bboxes_list[i]
+                (x1a, y1a, x2a, y2a), (x1b, y1b, x2b, y2b) = coors[i]
                 shift = np.array([x1a - x1b, y1a - y1b, x1a - x1b, y1a - y1b])
                 bboxes += shift
+
                 bboxes4.append(bboxes)
+                if classes_list is not None:
+                    classes = classes_list[i]
+                    classes4.append(classes)
             bboxes4 = np.concatenate(bboxes4)
-        return bboxes4
 
-    def apply_classes_list(self, classes_list, *args):
-        classes = None
-        if classes_list is not None:
-            classes = np.concatenate(classes_list)
+            keep = np.all(bboxes4 > 0, axis=-1)
+            bboxes4 = bboxes4[keep]
 
-        return classes
+            if classes_list is not None:
+                classes4 = np.concatenate(classes4)
+                classes4 = classes4[keep]
+            else:
+                classes4 = None
+        return bboxes4, classes4
 
 
 class Mosaic9:
@@ -229,10 +240,13 @@ class Mosaic9:
     def __call__(self, image_list, bboxes_list=None, classes_list=None, **kwargs):
         info = self.get_add_params(*self.get_params(image_list))
 
+        image = self.apply_image_list(image_list, info)
+        bboxes, classes = self.apply_bboxes_classes_list(bboxes_list, classes_list, info)
+
         return dict(
-            image=self.apply_image_list(image_list, info),
-            bboxes=self.apply_bboxes_list(bboxes_list, info),
-            classes=self.apply_classes_list(classes_list),
+            image=image,
+            bboxes=bboxes,
+            classes=classes,
             **info
         )
 
@@ -247,25 +261,35 @@ class Mosaic9:
         img9 = img9[yc:yc + 2 * s, xc:xc + 2 * s]
         return img9
 
-    def apply_bboxes_list(self, bboxes_list, ret):
+    def apply_bboxes_classes_list(self, bboxes_list, classes_list, ret):
         bboxes9 = None
+        classes9 = None
+
         if bboxes_list is not None:
             bboxes9 = []
+            classes9 = []
             coors, yc, xc = self.parse_add_params(ret)
-            for bboxes, ((x1, y1, x2, y2), (padx, pady)) in zip(bboxes_list, coors):
+            for i in range(len(bboxes_list)):
+                bboxes = bboxes_list[i]
+                (x1, y1, x2, y2), (padx, pady) = coors[i]
                 shift = np.array([padx, pady, padx, pady])
                 bboxes += shift
                 bboxes9.append(bboxes)
+                if classes_list is not None:
+                    classes = classes_list[i]
+                    classes9.append(classes)
 
             bboxes9 = np.concatenate(bboxes9)
             bboxes9[:, [0, 2]] -= xc
             bboxes9[:, [1, 3]] -= yc
 
-        return bboxes9
+            keep = np.all(bboxes9 > 0, axis=-1)
+            bboxes9 = bboxes9[keep]
 
-    def apply_classes_list(self, classes_list, *args):
-        classes = None
-        if classes_list is not None:
-            classes = np.concatenate(classes_list)
+            if classes_list is not None:
+                classes9 = np.concatenate(classes9)
+                classes9 = classes9[keep]
+            else:
+                classes9 = None
 
-        return classes
+        return bboxes9, classes9

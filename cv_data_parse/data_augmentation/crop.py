@@ -163,7 +163,12 @@ class Pad:
             if 'bboxes' in ret and ret['bboxes'] is not None:
                 bboxes = ret['bboxes']
                 bboxes = np.array(bboxes)
-                shift = np.array([l, t, l, t])
+                if bboxes.shape[-1] == 4:
+                    shift = np.array([l, t, l, t])
+                elif bboxes.shape[-1] == 2:
+                    shift = np.array([l, t])
+                else:
+                    raise ValueError(f'dont support {bboxes.shape = }')
                 bboxes -= shift
                 ret['bboxes'] = bboxes
 
@@ -243,9 +248,14 @@ class Crop:
             image = pad.apply_image(image, {pad.name: dict(t=y1, d=h - y2, l=x1, r=w - x2)})
             ret['image'] = image
 
-        if 'bboxes' in ret and ret['bboxes'] is not None:
+        if 'bboxes' in ret and ret['bboxes'] is not None and len(ret['bboxes']):
             bboxes = ret['bboxes']
-            shift = np.array([x1, y1, x1, y1])
+            if bboxes.shape[-1] == 4:
+                shift = np.array([x1, y1, x1, y1])
+            elif bboxes.shape[-1] == 2:
+                shift = np.array([x1, y1])
+            else:
+                raise ValueError(f'bboxes shape[-1] must be 4 or 2, but got {bboxes.shape[-1]}')
             bboxes += shift
             ret['bboxes'] = bboxes
 

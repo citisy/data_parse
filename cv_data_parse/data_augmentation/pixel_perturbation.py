@@ -4,7 +4,6 @@ import numbers
 import cv2
 import numpy as np
 
-from metrics.object_detection import Iou
 from . import RandomChoice
 
 
@@ -20,7 +19,8 @@ class MinMax:
         return image / 255.
 
     def restore(self, ret):
-        ret['image'] = ret['image'] * 255
+        if 'image' in ret:
+            ret['image'] = ret['image'] * 255
         return ret
 
 
@@ -163,9 +163,10 @@ class Normalize:
         return (image - mean) / std
 
     def restore(self, ret):
-        mean, std = self.parse_add_params(ret)
-        image = ret['image']
-        ret['image'] = image * std + mean
+        if 'image' in ret:
+            mean, std = self.parse_add_params(ret)
+            image = ret['image']
+            ret['image'] = image * std + mean
         return ret
 
 
@@ -607,6 +608,8 @@ class CutOut:
                 mask_bboxes.append([xmin, ymin, xmax, ymax])
 
         if bboxes is not None:
+            from metrics.object_detection import Iou
+
             iou = Iou.iou(bboxes, mask_bboxes)
             iou = np.max(iou, axis=1)
             idx = iou < self.iou_thres
