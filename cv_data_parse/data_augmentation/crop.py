@@ -171,14 +171,14 @@ class Pad:
                 image = image[y1:y2, x1: x2]
                 ret['image'] = image
 
-            if 'bboxes' in ret and ret['bboxes'] is not None:
+            if 'bboxes' in ret and ret['bboxes'] is not None and len(ret['bboxes']):
                 bboxes = ret['bboxes']
                 bboxes = np.array(bboxes)
                 shift = np.array([l, t, l, t])
                 bboxes -= shift
                 ret['bboxes'] = bboxes
 
-            if 'segmentations' in ret and ret['segmentations'] is not None:
+            if 'segmentations' in ret and ret['segmentations'] is not None and len(ret['segmentations']):
                 segmentations = ret['segmentations']
                 segmentations = np.array(segmentations)
                 shift = np.array([l, t])
@@ -294,13 +294,13 @@ class PadCrop:
         self.pad = Pad(**pad_kwargs)
         self.crop = Crop(pad=self.pad)
 
-    def __call__(self, image, dst_coor, bboxes=None, classes=None, **kwargs):
+    def __call__(self, image, dst_coor, bboxes=None, classes=None, segmentations=None, **kwargs):
         x1, x2, y1, y2 = dst_coor
         h, w = image.shape[:2]
 
         assert x1 >= 0 and y1 >= 0, ValueError(f'{x1 = } and {y1 = } must not be smaller than 0')
 
-        ret = dict(image=image, bboxes=bboxes, classes=classes)
+        ret = dict(image=image, bboxes=bboxes, classes=classes, segmentations=segmentations)
 
         if x2 > w or y2 > h:
             if self.is_pad:
