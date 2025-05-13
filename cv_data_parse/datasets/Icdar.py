@@ -1,10 +1,9 @@
 import os
-import json
-import cv2
-import numpy as np
-from utils import converter
-from .base import DataLoader, DataRegister, get_image
 from pathlib import Path
+
+import numpy as np
+
+from .base import DataLoader, DataRegister, get_image
 
 
 class Icdar2015(DataLoader):
@@ -13,7 +12,7 @@ class Icdar2015(DataLoader):
     Data structure:
         .
         ├── ch4_training_images                     # task 1(Text Localization) and task 4(End to End) train images, 1000 items
-        ├── ch4_test_images                         # task 1  and task 4 test images, 500 items
+        ├── ch4_test_images                         # task 1 and task 4 test images, 500 items
         ├── ch4_training_localization_transcription_gt  # task 1 train labels
         ├── Challenge4_Test_Task1_GT                # task 1 test labels
         ├── ch4_training_word_images_gt             # task 3(Word Recognition) train images and labels
@@ -73,7 +72,7 @@ class Icdar2015(DataLoader):
         elif train_task == '4':
             return self.load_task_4(**kwargs)
         else:
-            raise ValueError(f'dont support {train_task = }')
+            raise ValueError(f'Dont support {train_task = }')
 
     def load_task_1(self, set_type=DataRegister.PATH, **kwargs):
         """See Also `self._call`
@@ -101,7 +100,7 @@ class Icdar2015(DataLoader):
     def load_task_4(self, **kwargs):
         pass
 
-    def get_ret(self, fp, image_type=DataRegister.PATH, image_dir='', **kwargs) -> dict:
+    def get_ret(self, fp, image_type=DataRegister.PATH, image_dir='', ignore_escape=True, **kwargs) -> dict:
         image_path = os.path.abspath(f'{self.data_dir}/{image_dir}/{fp.stem.replace("gt_", "")}{self.image_suffix}')
         image = get_image(image_path, image_type)
 
@@ -112,7 +111,14 @@ class Icdar2015(DataLoader):
         labels = np.array(labels)
 
         segmentations = np.array(labels[:, :8], dtype=int).reshape((-1, 4, 2))
-        transcriptions = labels[:, 8].tolist()
+        transcriptions = labels[:, 8]
+
+        if ignore_escape:
+            keep = transcriptions != '###'
+            segmentations = segmentations[keep]
+            transcriptions = transcriptions[keep]
+
+        transcriptions = transcriptions.tolist()
 
         return dict(
             _id=Path(image_path).name,
