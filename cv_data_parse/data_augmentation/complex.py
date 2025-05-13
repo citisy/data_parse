@@ -1,3 +1,4 @@
+"""require batch images as input"""
 import numpy as np
 
 

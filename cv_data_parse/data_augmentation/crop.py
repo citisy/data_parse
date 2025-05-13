@@ -93,7 +93,10 @@ class Pad:
             d=pad_down
         )
 
-    def get_add_params(self, dst_w, dst_h, w, h):
+    def get_add_params(self, dst, w, h):
+        if isinstance(dst, int):
+            dst = (dst, dst)
+        dst_w, dst_h = dst
         return {self.name: self.get_params(dst_w, dst_h, w, h)}
 
     def parse_add_params(self, ret):
@@ -104,7 +107,7 @@ class Pad:
         r = pad_info.get('r', 0)
         return t, d, l, r
 
-    def __call__(self, image, dst, bboxes=None, **kwargs):
+    def __call__(self, image, dst, bboxes=None, segmentations=None, **kwargs):
         """
 
         Args:
@@ -112,17 +115,16 @@ class Pad:
             dst: padding to destination size
 
         """
-        if isinstance(dst, int):
-            dst = (dst, dst)
-        dst_w, dst_h = dst
         h, w = image.shape[:2]
-        add_params = self.get_add_params(dst_w, dst_h, w, h)
+        add_params = self.get_add_params(dst, w, h)
         image = self.apply_image(image, add_params)
         bboxes = self.apply_bboxes(bboxes, add_params)
+        segmentations = self.apply_segmentations(segmentations, add_params)
 
         return {
             'image': image,
             'bboxes': bboxes,
+            'segmentations': segmentations,
             **add_params
         }
 
@@ -146,6 +148,15 @@ class Pad:
 
         return bboxes
 
+    def apply_segmentations(self, segmentations, ret):
+        if segmentations is not None and self.name in ret:
+            t, d, l, r = self.parse_add_params(ret)
+            segmentations = np.array(segmentations)
+            shift = np.array([l, t])
+            segmentations += shift
+
+        return segmentations
+
     def restore(self, ret):
         if self.name in ret:
             t, d, l, r = self.parse_add_params(ret)
@@ -163,14 +174,16 @@ class Pad:
             if 'bboxes' in ret and ret['bboxes'] is not None:
                 bboxes = ret['bboxes']
                 bboxes = np.array(bboxes)
-                if bboxes.shape[-1] == 4:
-                    shift = np.array([l, t, l, t])
-                elif bboxes.shape[-1] == 2:
-                    shift = np.array([l, t])
-                else:
-                    raise ValueError(f'dont support {bboxes.shape = }')
+                shift = np.array([l, t, l, t])
                 bboxes -= shift
                 ret['bboxes'] = bboxes
+
+            if 'segmentations' in ret and ret['segmentations'] is not None:
+                segmentations = ret['segmentations']
+                segmentations = np.array(segmentations)
+                shift = np.array([l, t])
+                segmentations -= shift
+                ret['segmentations'] = segmentations
 
         return ret
 
@@ -194,16 +207,18 @@ class Crop:
         h = info.get('h', 0)
         return x1, x2, y1, y2, w, h
 
-    def __call__(self, image, dst_coor, bboxes=None, classes=None, **kwargs):
+    def __call__(self, image, dst_coor, bboxes=None, classes=None, segmentations=None, **kwargs):
         h, w = image.shape[:2]
         add_params = self.get_add_params(dst_coor, w, h)
         image = self.apply_image(image, add_params)
         bboxes, classes = self.apply_bboxes_classes(bboxes, classes, add_params)
+        segmentations = self.apply_segmentations(segmentations, add_params)
 
         return {
             'image': image,
             'bboxes': bboxes,
             'classes': classes,
+            'segmentations': segmentations,
             **add_params
         }
 
@@ -238,6 +253,16 @@ class Crop:
 
         return bboxes, classes
 
+    def apply_segmentations(self, segmentations, ret):
+        if segmentations is not None:
+            x1, x2, y1, y2, w, h = self.parse_add_params(ret)
+            segmentations = np.array(segmentations)
+            shift = np.array([x1, y1])
+            segmentations -= shift
+            segmentations = segmentations.clip(min=0)
+
+        return segmentations
+
     def restore(self, ret):
         x1, x2, y1, y2, w, h = self.parse_add_params(ret)
 
@@ -250,14 +275,15 @@ class Crop:
 
         if 'bboxes' in ret and ret['bboxes'] is not None and len(ret['bboxes']):
             bboxes = ret['bboxes']
-            if bboxes.shape[-1] == 4:
-                shift = np.array([x1, y1, x1, y1])
-            elif bboxes.shape[-1] == 2:
-                shift = np.array([x1, y1])
-            else:
-                raise ValueError(f'bboxes shape[-1] must be 4 or 2, but got {bboxes.shape[-1]}')
+            shift = np.array([x1, y1, x1, y1])
             bboxes += shift
             ret['bboxes'] = bboxes
+
+        if 'segmentations' in ret and ret['segmentations'] is not None and len(ret['segmentations']):
+            segmentations = ret['segmentations']
+            shift = np.array([x1, y1])
+            segmentations += shift
+            ret['segmentations'] = segmentations
 
         return ret
 

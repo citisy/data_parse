@@ -74,13 +74,14 @@ class Proportion:
     def parse_add_params(self, ret):
         return ret[self.name]['p'], ret[self.name]['w'], ret[self.name]['h']
 
-    def __call__(self, image, dst, bboxes=None, **kwargs):
+    def __call__(self, image, dst, bboxes=None, segmentations=None, **kwargs):
         h, w = image.shape[:2]
         add_params = self.get_add_params(dst, w, h)
 
         return {
             'image': self.apply_image(image, add_params),
             'bboxes': self.apply_bboxes(bboxes, add_params),
+            'segmentations': self.apply_segmentations(segmentations, add_params),
             **add_params
         }
 
@@ -95,6 +96,13 @@ class Proportion:
             bboxes = bboxes.astype(int)
         return bboxes
 
+    def apply_segmentations(self, segmentations, ret):
+        p, _, _ = self.parse_add_params(ret)
+        if segmentations is not None:
+            segmentations = np.array(segmentations, dtype=float) * p
+            segmentations = segmentations.astype(int)
+        return segmentations
+
     def restore(self, ret):
         p, w, h = self.parse_add_params(ret)
         if 'image' in ret and ret['image'] is not None:
@@ -108,6 +116,12 @@ class Proportion:
             bboxes = np.array(bboxes, dtype=float) / p
             bboxes = bboxes.astype(int)
             ret['bboxes'] = bboxes
+
+        if 'segmentations' in ret and ret['segmentations'] is not None:
+            segmentations = ret['segmentations']
+            segmentations = np.array(segmentations, dtype=float) / p
+            segmentations = segmentations.astype(int)
+            ret['segmentations'] = segmentations
 
         return ret
 
@@ -206,7 +220,7 @@ class RandomRectangle(Rectangle):
 
 
 class Complex:
-    """one resize + one crop"""
+    """resize + crop"""
 
     resize: Optional
     crop: Optional

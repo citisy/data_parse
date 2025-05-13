@@ -627,14 +627,15 @@ class AxisProjection:
 
         Args:
             axis: (h, w, c),
-                0 gives that all pixels are projected to x-axis,
+                0 gives that all pixels are projected to x-axis
                 1 gives that all pixels are projected to y-axis
+                2 gives that all pixels are projected to channel-axis
         """
         self.axis = axis
 
     def __call__(self, image, **kwargs):
         return dict(
-            image=self.apply_image(image)
+            mapping=self.apply_image(image)
         )
 
     def apply_image(self, image, *args):
@@ -642,3 +643,159 @@ class AxisProjection:
         x = np.expand_dims(x, self.axis)
         x = np.repeat(x, image.shape[self.axis], axis=self.axis)
         return x
+
+
+class BorderMap:
+    """refer to:
+    https://github.com/WenmuZhou/DBNet.pytorch/blob/master/data_loader/modules/make_border_map.py"""
+
+    def __init__(self, shrink_ratio=0.4, thresh_min=0.3, thresh_max=0.7, epoch=None, total_epoch=0.):
+        self.shrink_ratio = shrink_ratio
+        self.thresh_min = thresh_min
+        self.thresh_max = thresh_max
+        if epoch is not None and total_epoch != 0:
+            self.shrink_ratio = self.shrink_ratio + 0.2 * epoch / total_epoch
+
+    def __call__(self, image, segmentations, **kwargs):
+        mapping, mask = self.apply_image_segmentations(image, segmentations)
+        return dict(
+            mapping=mapping,
+            mask=mask
+        )
+
+    def apply_image_segmentations(self, image, segmentations):
+        mapping = np.zeros(image.shape[:2], dtype=np.float32)
+        mask = np.zeros(image.shape[:2], dtype=np.float32)
+
+        for points in segmentations:
+            self.draw_border_map(points, mapping, mask)
+        mapping = mapping * (self.thresh_max - self.thresh_min) + self.thresh_min
+
+        return mapping, mask
+
+    def draw_border_map(self, points, mapping, mask):
+        import pyclipper
+        from shapely.geometry import Polygon
+
+        points = np.array(points)
+
+        polygon_shape = Polygon(points)
+        if polygon_shape.area <= 0:
+            return
+        distance = polygon_shape.area * (1 - np.power(self.shrink_ratio, 2)) / polygon_shape.length
+        subject = [tuple(l) for l in points]
+        padding = pyclipper.PyclipperOffset()
+        padding.AddPath(subject, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+
+        padded_polygon = np.array(padding.Execute(distance)[0])
+        cv2.fillPoly(mask, [padded_polygon.astype(np.int32)], 1.0)
+
+        xmin = padded_polygon[:, 0].min()
+        xmax = padded_polygon[:, 0].max()
+        ymin = padded_polygon[:, 1].min()
+        ymax = padded_polygon[:, 1].max()
+        width = xmax - xmin + 1
+        height = ymax - ymin + 1
+
+        points[:, 0] = points[:, 0] - xmin
+        points[:, 1] = points[:, 1] - ymin
+
+        xs = np.broadcast_to(
+            np.linspace(0, width - 1, num=width).reshape(1, width), (height, width)
+        )
+        ys = np.broadcast_to(
+            np.linspace(0, height - 1, num=height).reshape(height, 1), (height, width)
+        )
+
+        distance_map = np.zeros((points.shape[0], height, width), dtype=np.float32)
+        for i in range(points.shape[0]):
+            j = (i + 1) % points.shape[0]
+            absolute_distance = self._distance(xs, ys, points[i], points[j])
+            distance_map[i] = np.clip(absolute_distance / distance, 0, 1)
+        distance_map = distance_map.min(axis=0)
+
+        xmin_valid = min(max(0, xmin), mapping.shape[1] - 1)
+        xmax_valid = min(max(0, xmax), mapping.shape[1] - 1)
+        ymin_valid = min(max(0, ymin), mapping.shape[0] - 1)
+        ymax_valid = min(max(0, ymax), mapping.shape[0] - 1)
+        mapping[ymin_valid: ymax_valid + 1, xmin_valid: xmax_valid + 1] = np.fmax(
+            1 - distance_map[ymin_valid - ymin: ymax_valid - ymax + height, xmin_valid - xmin: xmax_valid - xmax + width],
+            mapping[ymin_valid: ymax_valid + 1, xmin_valid: xmax_valid + 1],
+        )
+
+    def _distance(self, xs, ys, point_1, point_2):
+        """
+        compute the distance from point to a line
+        ys: coordinates in the first axis
+        xs: coordinates in the second axis
+        point_1, point_2: (x, y), the end of the line
+        """
+        square_distance_1 = np.square(xs - point_1[0]) + np.square(ys - point_1[1])
+        square_distance_2 = np.square(xs - point_2[0]) + np.square(ys - point_2[1])
+        square_distance = np.square(point_1[0] - point_2[0]) + np.square(point_1[1] - point_2[1])
+
+        cosin = (square_distance - square_distance_1 - square_distance_2) / (2 * np.sqrt(square_distance_1 * square_distance_2))
+        square_sin = 1 - np.square(cosin)
+        square_sin = np.nan_to_num(square_sin)
+        result = np.sqrt(square_distance_1 * square_distance_2 * square_sin / square_distance)
+
+        result[cosin < 0] = np.sqrt(np.fmin(square_distance_1, square_distance_2))[cosin < 0]
+        return result
+
+
+class ShrinkMap:
+    """refer to:
+    https://github.com/WenmuZhou/DBNet.pytorch/blob/master/data_loader/modules/make_shrink_map.py"""
+
+    def __init__(self, min_size=8, min_area=64, shrink_ratio=0.4, epoch=None, total_epoch=0.):
+        self.min_size = min_size
+        self.min_area = min_area
+        self.shrink_ratio = shrink_ratio
+        if epoch is not None and total_epoch != 0:
+            self.shrink_ratio = self.shrink_ratio + 0.2 * epoch / total_epoch
+
+    def __call__(self, image, segmentations, **kwargs):
+        mapping, mask = self.apply_image_segmentations(image, segmentations)
+        return dict(
+            mapping=mapping,
+            mask=mask
+        )
+
+    def apply_image_segmentations(self, image, segmentations):
+        import pyclipper
+        from shapely.geometry import Polygon
+
+        h, w = image.shape[:2]
+        mapping = np.zeros((h, w), dtype=np.float32)
+        mask = np.ones((h, w), dtype=np.float32)
+        for points in segmentations:
+            height = max(points[:, 1]) - min(points[:, 1])
+            width = max(points[:, 0]) - min(points[:, 0])
+            polygon_shape = Polygon(points)
+            if min(height, width) < self.min_size or polygon_shape.area < self.min_area:
+                cv2.fillPoly(mask, points.astype(np.int32)[np.newaxis, :, :], 0)
+            else:
+                subject = [tuple(l) for l in points]
+                padding = pyclipper.PyclipperOffset()
+                padding.AddPath(subject, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+                shrunk = []
+
+                # Increase the shrink ratio every time we get multiple polygon returned back
+                possible_ratios = np.arange(self.shrink_ratio, 1, self.shrink_ratio)
+                np.append(possible_ratios, 1)
+                for ratio in possible_ratios:
+                    distance = polygon_shape.area * (1 - np.power(ratio, 2)) / polygon_shape.length
+                    shrunk = padding.Execute(-distance)
+                    if len(shrunk) == 1:
+                        break
+
+                if not shrunk:
+                    cv2.fillPoly(mask, points.astype(np.int32)[np.newaxis, :, :], 0)
+                    continue
+
+                for each_shrink in shrunk:
+                    shrink = np.array(each_shrink).reshape(-1, 2)
+                    cv2.fillPoly(mapping, [shrink.astype(np.int32)], 1)
+
+        return mapping, mask
+
