@@ -91,14 +91,14 @@ class Proportion:
 
     def apply_bboxes(self, bboxes, ret):
         p, _, _ = self.parse_add_params(ret)
-        if bboxes is not None:
+        if bboxes is not None and len(bboxes):
             bboxes = np.array(bboxes, dtype=float) * p
             bboxes = bboxes.astype(int)
         return bboxes
 
     def apply_segmentations(self, segmentations, ret):
         p, _, _ = self.parse_add_params(ret)
-        if segmentations is not None:
+        if segmentations is not None and len(segmentations):
             segmentations = np.array(segmentations, dtype=float) * p
             segmentations = segmentations.astype(int)
         return segmentations
