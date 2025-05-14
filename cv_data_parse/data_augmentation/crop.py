@@ -151,9 +151,8 @@ class Pad:
     def apply_segmentations(self, segmentations, ret):
         if segmentations is not None and self.name in ret and len(segmentations):
             t, d, l, r = self.parse_add_params(ret)
-            segmentations = np.array(segmentations)
             shift = np.array([l, t])
-            segmentations += shift
+            segmentations = [np.array(points) + shift for points in segmentations]
 
         return segmentations
 
@@ -180,9 +179,9 @@ class Pad:
 
             if 'segmentations' in ret and ret['segmentations'] is not None and len(ret['segmentations']):
                 segmentations = ret['segmentations']
-                segmentations = np.array(segmentations)
                 shift = np.array([l, t])
-                segmentations -= shift
+                segmentations = np.array(segmentations)
+                segmentations = [np.array(points) - shift for points in segmentations]
                 ret['segmentations'] = segmentations
 
         return ret
@@ -256,10 +255,8 @@ class Crop:
     def apply_segmentations(self, segmentations, ret):
         if segmentations is not None and len(segmentations):
             x1, x2, y1, y2, w, h = self.parse_add_params(ret)
-            segmentations = np.array(segmentations)
             shift = np.array([x1, y1])
-            segmentations -= shift
-            segmentations = segmentations.clip(min=0)
+            segmentations = [(np.array(points) - shift).clip(min=0) for points in segmentations]
 
         return segmentations
 
@@ -282,7 +279,7 @@ class Crop:
         if 'segmentations' in ret and ret['segmentations'] is not None and len(ret['segmentations']):
             segmentations = ret['segmentations']
             shift = np.array([x1, y1])
-            segmentations += shift
+            segmentations = [np.array(points) + shift for points in segmentations]
             ret['segmentations'] = segmentations
 
         return ret
