@@ -140,7 +140,7 @@ class Pad:
             return image
 
     def apply_bboxes(self, bboxes, ret):
-        if bboxes is not None and self.name in ret:
+        if bboxes is not None and self.name in ret and len(bboxes):
             t, d, l, r = self.parse_add_params(ret)
             bboxes = np.array(bboxes)
             shift = np.array([l, t, l, t])
@@ -149,7 +149,7 @@ class Pad:
         return bboxes
 
     def apply_segmentations(self, segmentations, ret):
-        if segmentations is not None and self.name in ret:
+        if segmentations is not None and self.name in ret and len(segmentations):
             t, d, l, r = self.parse_add_params(ret)
             segmentations = np.array(segmentations)
             shift = np.array([l, t])
