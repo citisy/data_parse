@@ -227,7 +227,7 @@ class Crop:
         return image[y1:y2, x1: x2]
 
     def apply_bboxes_classes(self, bboxes, classes, ret):
-        if bboxes is not None:
+        if bboxes is not None and len(bboxes):
             x1, x2, y1, y2, w, h = self.parse_add_params(ret)
             bboxes = bboxes
             shift = np.array([x1, y1, x1, y1])
@@ -254,7 +254,7 @@ class Crop:
         return bboxes, classes
 
     def apply_segmentations(self, segmentations, ret):
-        if segmentations is not None:
+        if segmentations is not None and len(segmentations):
             x1, x2, y1, y2, w, h = self.parse_add_params(ret)
             segmentations = np.array(segmentations)
             shift = np.array([x1, y1])
