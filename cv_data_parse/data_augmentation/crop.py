@@ -261,17 +261,15 @@ class Crop:
             for points in segmentations:
                 points = (np.array(points) - shift).clip(min=0)
 
-                points[:, 0::2] = np.where(points[:, 0::2] > x2 - x1, x2 - x1, points[:, 0::2])
-                points[:, 1::2] = np.where(points[:, 1::2] > y2 - y1, y2 - y1, points[:, 1::2])
+                points[:, 0] = np.where(points[:, 0] > x2 - x1, x2 - x1, points[:, 0])
+                points[:, 1] = np.where(points[:, 1] > y2 - y1, y2 - y1, points[:, 1])
 
-                idx = (points[:, 0] == points[:, 2])
+                for i in range(len(points) - 1):
+                    if points[i, 0] != points[i + 1, 0] or points[i, 1] != points[i + 1, 1]:
+                        _segmentations.append(points)
+                        break
 
-                keep = ~idx
-                points = points[keep]
-
-                _segmentations.append(points)
-
-        return segmentations
+            return _segmentations
 
     def restore(self, ret):
         x1, x2, y1, y2, w, h = self.parse_add_params(ret)
