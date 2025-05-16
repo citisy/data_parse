@@ -269,7 +269,9 @@ class Crop:
                         _segmentations.append(points)
                         break
 
-            return _segmentations
+            segmentations = _segmentations
+
+        return segmentations
 
     def restore(self, ret):
         x1, x2, y1, y2, w, h = self.parse_add_params(ret)
