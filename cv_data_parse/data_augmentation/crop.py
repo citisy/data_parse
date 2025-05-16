@@ -237,7 +237,7 @@ class Crop:
 
             idx = ((bboxes[:, 0] == bboxes[:, 2]) | (bboxes[:, 1] == bboxes[:, 3]))
             if np.any(idx):
-                ret[self.name]['bboxes'] = bboxes[idx]
+                ret[self.name]['filter_bboxes'] = bboxes[idx]
 
             keep = ~idx
             bboxes = bboxes[keep]
@@ -246,7 +246,7 @@ class Crop:
                 classes = np.array(classes)
 
                 if np.any(idx):
-                    ret[self.name]['classes'] = classes[idx]
+                    ret[self.name]['filter_classes'] = classes[idx]
 
                 classes = classes[keep]
 
@@ -256,7 +256,20 @@ class Crop:
         if segmentations is not None and len(segmentations):
             x1, x2, y1, y2, w, h = self.parse_add_params(ret)
             shift = np.array([x1, y1])
-            segmentations = [(np.array(points) - shift).clip(min=0) for points in segmentations]
+
+            _segmentations = []
+            for points in segmentations:
+                points = (np.array(points) - shift).clip(min=0)
+
+                points[:, 0::2] = np.where(points[:, 0::2] > x2 - x1, x2 - x1, points[:, 0::2])
+                points[:, 1::2] = np.where(points[:, 1::2] > y2 - y1, y2 - y1, points[:, 1::2])
+
+                idx = (points[:, 0] == points[:, 2])
+
+                keep = ~idx
+                points = points[keep]
+
+                _segmentations.append(points)
 
         return segmentations
 
