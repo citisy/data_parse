@@ -649,10 +649,14 @@ class BorderMap:
     """refer to:
     https://github.com/WenmuZhou/DBNet.pytorch/blob/master/data_loader/modules/make_border_map.py"""
 
-    def __init__(self, shrink_ratio=0.4, thresh_min=0.3, thresh_max=0.7, epoch=None, total_epoch=0.):
+    def __init__(self, shrink_ratio=0.4, thresh_min=0.3, thresh_max=0.7, join_type=1, epoch=None, total_epoch=0.):
         self.shrink_ratio = shrink_ratio
         self.thresh_min = thresh_min
         self.thresh_max = thresh_max
+        # JT_MITER = 2
+        # JT_ROUND = 1
+        # JT_SQUARE = 0
+        self.join_type = join_type
         if epoch is not None and total_epoch != 0:
             self.shrink_ratio = self.shrink_ratio + 0.2 * epoch / total_epoch
 
@@ -685,9 +689,13 @@ class BorderMap:
         distance = polygon_shape.area * (1 - np.power(self.shrink_ratio, 2)) / polygon_shape.length
         subject = [tuple(l) for l in points]
         padding = pyclipper.PyclipperOffset()
-        padding.AddPath(subject, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+        padding.AddPath(subject, self.join_type, pyclipper.ET_CLOSEDPOLYGON)
 
-        padded_polygon = np.array(padding.Execute(distance)[0])
+        pad = padding.Execute(distance)
+        if not pad:
+            return
+
+        padded_polygon = np.array(pad[0])
         cv2.fillPoly(mask, [padded_polygon.astype(np.int32)], 1.0)
 
         xmin = padded_polygon[:, 0].min()
@@ -747,10 +755,14 @@ class ShrinkMap:
     """refer to:
     https://github.com/WenmuZhou/DBNet.pytorch/blob/master/data_loader/modules/make_shrink_map.py"""
 
-    def __init__(self, min_size=8, min_area=64, shrink_ratio=0.4, epoch=None, total_epoch=0.):
+    def __init__(self, min_size=8, min_area=64, shrink_ratio=0.4, join_type=1, epoch=None, total_epoch=0.):
         self.min_size = min_size
         self.min_area = min_area
         self.shrink_ratio = shrink_ratio
+        # JT_MITER = 2
+        # JT_ROUND = 1
+        # JT_SQUARE = 0
+        self.join_type = join_type
         if epoch is not None and total_epoch != 0:
             self.shrink_ratio = self.shrink_ratio + 0.2 * epoch / total_epoch
 
@@ -777,7 +789,7 @@ class ShrinkMap:
             else:
                 subject = [tuple(l) for l in points]
                 padding = pyclipper.PyclipperOffset()
-                padding.AddPath(subject, pyclipper.JT_ROUND, pyclipper.ET_CLOSEDPOLYGON)
+                padding.AddPath(subject, self.join_type, pyclipper.ET_CLOSEDPOLYGON)
                 shrunk = []
 
                 # Increase the shrink ratio every time we get multiple polygon returned back
