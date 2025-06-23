@@ -342,9 +342,9 @@ class DatasetGenerator:
         self.verbose = verbose
         self.stdout_method = stdout_method if verbose else os_lib.FakeIo()
 
-    def gen_sets(self, **kwargs):
-        """please implement this function"""
-        return self._gen_sets(**kwargs)
+    def gen_sets(self, *args, **kwargs):
+        """please implement this function, and call _gen_sets finally"""
+        return self._gen_sets(*args, **kwargs)
 
     def _gen_sets(
             self,
@@ -354,7 +354,7 @@ class DatasetGenerator:
         """
 
         Args:
-            iter_data (List[str]):
+            iter_data (List[Any]):
             idx (List[str]): be used for sorting
             id_distinguish:
                 the image file name where having same id must not be split to different sets.
@@ -407,12 +407,13 @@ class DatasetGenerator:
                 i = j
 
         else:
-            np.random.shuffle(iter_data)
+            ids = list(range(len(iter_data)))
+            np.random.shuffle(ids)
 
             i = 0
             for j, set_name in zip(split_ratio, set_names):
                 j = int(j * len(iter_data))
-                candidate_ids = list(range(i, j))
+                candidate_ids = ids[i: j]
                 self.save_func(iter_data, candidate_ids, set_name, **save_kwargs)
 
                 i = j

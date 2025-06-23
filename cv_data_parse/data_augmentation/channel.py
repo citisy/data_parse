@@ -11,8 +11,9 @@ class HWC2CHW:
 
     @staticmethod
     def apply_image(image, *args):
-        image = np.transpose(image, (2, 0, 1))
-        image = np.ascontiguousarray(image)
+        if len(image.shape) == 3:
+            image = np.transpose(image, (2, 0, 1))
+            image = np.ascontiguousarray(image)
         return image
 
     def restore(self, ret):
@@ -29,8 +30,9 @@ class CHW2HWC:
 
     @staticmethod
     def apply_image(image, *args):
-        image = np.transpose(image, (1, 2, 0))
-        image = np.ascontiguousarray(image)
+        if len(image.shape) == 3:
+            image = np.transpose(image, (1, 2, 0))
+            image = np.ascontiguousarray(image)
         return image
 
     def restore(self, ret):
@@ -114,7 +116,9 @@ class Keep3Channels:
     def apply_image(self, image, *args):
         c = image.shape[-1]
         if c == 1:
-            image = np.concatenate([image, image, image], axis=-1)
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif c == 3:
+            pass
         elif c == 4:
             color = image[:, :, 0:3].astype(np.float32)
             alpha = image[:, :, 3:4].astype(np.float32) / 255.0

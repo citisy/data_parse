@@ -19,15 +19,6 @@ def greedy_search(x, seq_lens, score_fn, **score_fn_kwargs):
 
 
 def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, **score_fn_kwargs):
-    """
-
-    Args:
-        x (torch.Tensor): (batch_size, seq_length, vocab_size) after log softmax
-
-    Returns:
-        preds: (batch_size, beam_size, seq_length)
-
-    """
     assert seq_lens is not None
 
     batch_size = len(x)
