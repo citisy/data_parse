@@ -339,8 +339,6 @@ class KPiecesToChunkedParagraphs(ToChunkedParagraphs):
         return chunked_paragraphs
 
 
-
-
 class ToChunkedSegments(ToChunked):
     """chunk without dropping any context"""
 

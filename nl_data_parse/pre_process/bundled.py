@@ -18,6 +18,38 @@ class Apply:
         return obj
 
 
+class SimpleTokenizer:
+    def __init__(self, vocab, word_dict=None, sp_token_dict=None, **kwargs):
+        self.__dict__.update(kwargs)
+        self.vocab = set(vocab)
+        self.vocab_size = len(vocab)
+        self.word_dict = word_dict or {word: i for i, word in enumerate(vocab)}
+        self.word_inv_dict = {v: k for k, v in self.word_dict.items()}
+        self.sp_token_dict = sp_token_dict
+        if sp_token_dict:
+            self.sp_id_dict = {k: self.word_dict[v] for k, v in self.sp_token_dict.items() if v in self.word_dict}
+
+            self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
+            self.__dict__.update({f'{k}_id': v for k, v in self.sp_id_dict.items()})
+
+        self.numeralizer = numeralizer.KeyValueEncode(
+            self.word_dict,
+            self.word_inv_dict,
+            unk_token=self.unk_token    # if `sp_token_dict` is not set, `unk_token` must be set
+        )
+
+    @classmethod
+    def from_pretrained(cls, vocab_fn, **kwargs):
+        vocab = os_lib.loader.auto_load(vocab_fn)
+        return cls(vocab, **kwargs)
+
+    def encode_segments(self, segments: List[List[str]]):
+        return self.numeralizer.encode(segments)
+
+    def decode_to_segments(self, segments_ids):
+        return self.numeralizer.decode(segments_ids)
+
+
 class BertTokenizer:
     """the whole bert-like tokenize is like that:
     - input: 'hello world'
@@ -87,20 +119,10 @@ class BertTokenizer:
         vocab = os_lib.loader.auto_load(vocab_fn)
         return cls(vocab, **kwargs)
 
-    def encode(self, paragraphs, mask=False):
+    def encode_paragraphs(self, paragraphs, random_mask=False):
         segments = self.encode_paragraphs_to_segments(paragraphs)
         segment_pair_tags = [[0] * len(segment) for segment in segments]
-        if mask:
-            segments, mask_tags = self.perturbation.from_segments(segments)
-        else:
-            mask_tags = None
-
-        r = self.encode_segments(segments, segment_pair_tags)
-
-        return dict(
-            **r,
-            mask_tags=mask_tags
-        )
+        return self.encode_segments(segments, segment_pair_tags, random_mask=random_mask)
 
     def decode(self):
         pass
@@ -111,19 +133,27 @@ class BertTokenizer:
             segments = self.chunker_spliter.from_segments(segments)
         return segments
 
-    def encode_segments(self, segments, segment_pair_tags):
+    def encode_segments(self, segments: List[List[str]], segment_pair_tags=None, random_mask=False):
         """
 
         Args:
             segments: [['hello', 'world', '[SEP]', 'hello', 'python'], ...]
             segment_pair_tags: [[0, 0, 0, 1, 1], ...]
+            random_mask:
 
         Returns:
-            segments_ids: [[1, 2, 3, 4, 5, 0, 0, ...], ...]
-            segment_pair_tags: [[0, 0, 0, 1, 1, 0, 0, ...], ...]
-            valid_segment_tags: [[True, True, True, True, True, False, False, ...], ...]
+            segments_ids (List[List[int]]): [[1, 2, 3, 4, 5, 0, 0, ...], ...]
+            segment_pair_tags (List[List[int]]): [[0, 0, 0, 1, 1, 0, 0, ...], ...]
+            valid_segment_tags (List[List[bool]]): [[True, True, True, True, True, False, False, ...], ...]
+            seq_lens (List[int]): [5, ...]
+            mask_tags
 
         """
+        if random_mask:
+            segments, mask_tags = self.perturbation.from_segments(segments)
+        else:
+            mask_tags = None
+
         valid_segment_tags = [[True] * len(seg) for seg in segments]
         seq_lens = [len(t) for t in segments]
         segments = snack.align(
@@ -135,20 +165,33 @@ class BertTokenizer:
             start_obj=True, end_obj=True, pad_obj=False
         )
         segments_ids = self.numeralizer.encode(segments)
-        segment_pair_tags = snack.align(
-            segment_pair_tags, max_seq_len=self.max_seq_len,
-            start_obj=0, end_obj=segment_pair_tags[0][-1], pad_obj=0
-        )
+        if segment_pair_tags is not None:
+            segment_pair_tags = snack.align(
+                segment_pair_tags, max_seq_len=self.max_seq_len,
+                start_obj=0, end_obj=segment_pair_tags[0][-1], pad_obj=0
+            )
         return dict(
             segments_ids=segments_ids,
             segment_pair_tags=segment_pair_tags,
             valid_segment_tags=valid_segment_tags,
-            seq_lens=seq_lens
+            seq_lens=seq_lens,
+            mask_tags=mask_tags
         )
 
-    def decode_to_segments(self, segments_ids, valid_segment_tags):
-        seq_lens = [sum(valid) for valid in valid_segment_tags]
-        segments_ids = [seg[:seq_len] for seg, seq_len in zip(segments_ids, seq_lens)]
+    def decode_to_segments(self, segments_ids, valid_segment_tags=None, seq_lens=None):
+        """
+
+        Args:
+            segments_ids:
+            valid_segment_tags: bool, mask for segments
+            seq_lens:
+
+        """
+        if valid_segment_tags is not None:
+            seq_lens = [sum(valid) for valid in valid_segment_tags]
+        if seq_lens is not None:
+            segments_ids = [seg[:seq_len] for seg, seq_len in zip(segments_ids, seq_lens)]
+
         segments = self.numeralizer.decode(segments_ids)
         return segments
 

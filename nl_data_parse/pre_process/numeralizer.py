@@ -28,7 +28,7 @@ class KeyValueEncode:
         return [[self.word_dict.get(c, self.unk_id) for c in seg] for seg in segments]
 
     def decode(self, ids):
-        return [[self.word_inv_dict.get(t, self.unk_token) for t in _id] for _id in ids]
+        return [[self.word_inv_dict.get(int(t), self.unk_token) for t in _id] for _id in ids]
 
 
 class SeqEncode:
