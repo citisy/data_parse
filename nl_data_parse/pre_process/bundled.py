@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 from utils import os_lib
+from utils.excluded import charset_dict
 from . import spliter, chunker, cleaner, snack, numeralizer, perturbation
 
 
@@ -35,7 +36,7 @@ class SimpleTokenizer:
         self.numeralizer = numeralizer.KeyValueEncode(
             self.word_dict,
             self.word_inv_dict,
-            unk_token=self.unk_token    # if `sp_token_dict` is not set, `unk_token` must be set
+            unk_token=self.unk_token  # if `sp_token_dict` is not set, `unk_token` must be set
         )
 
     @classmethod
@@ -993,3 +994,64 @@ class Qwen2VLTokenizer(Qwen2Tokenizer):
 
         pixel_value, grid_thw = self.patch_image(image, temporal_patch_size=2, patch_size=14, merge_size=2)
         return pixel_value, grid_thw
+
+
+class WhisperTokenizer:
+    sp_id_dict = dict(
+        ignore=-1,
+        sos_eos=0
+    )
+
+    def __init__(self):
+        from whisper.tokenizer import get_tokenizer
+
+        self.numeralizer = get_tokenizer(
+            multilingual=True,
+            num_languages=100,
+            language='en',
+            task='transcribe',
+        )
+
+        self.__dict__.update({f'{k}_id': v for k, v in self.sp_id_dict.items()})
+
+    def cleaner(self, paragraph: str):
+        if charset_dict.utf8_pattern_dict['zh'].search(paragraph):
+            return Apply(
+                self.normalize_zh_punc,
+                cleaner.FileterDuplicateBlank().from_paragraph,
+                cleaner.Num2Zh().from_paragraph
+            )
+
+        else:
+            return Apply(
+                cleaner.FileterDuplicateBlank().from_paragraph,
+                cleaner.Num2En().from_paragraph
+            )
+
+    def normalize_zh_punc(self, paragraph: str):
+        paragraph = re.sub('[,、]+', '，', paragraph)
+        paragraph = re.sub('[-]+', ' ', paragraph)
+        return paragraph
+
+    def encode_paragraph(self, paragraph: str):
+        paragraph = self.cleaner(paragraph)
+        segment_ids = self.numeralizer.encode(paragraph, allowed_special='all')
+        return dict(
+            segment_ids=segment_ids
+        )
+
+    def encode_paragraphs(self, paragraphs: List[str], pad_type=snack.MAX_LEN):
+        segments_ids = []
+        seq_lens = []
+        for paragraph in paragraphs:
+            segment_ids = self.encode_paragraph(paragraph)['segment_ids']
+            segments_ids.append(segment_ids)
+            seq_lens.append(len(segment_ids))
+
+        if pad_type == snack.MAX_LEN:
+            segments_ids = snack.pad(segments_ids, max(seq_lens), pad_obj=self.ignore_id)
+
+        return dict(
+            segments_ids=segments_ids,
+            seq_lens=seq_lens
+        )

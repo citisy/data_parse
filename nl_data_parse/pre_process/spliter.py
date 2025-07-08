@@ -67,6 +67,10 @@ class ToSegment:
 
         >>> ToSegment(sp_tokens=['[MASK]']).from_paragraph(text)
         ['hello', '[MASK]', '!']
+
+        >>> from .cleaner import Lower
+        >>> ToSegment(cleaner=Lower().from_paragraph).from_paragraph(text)
+        >>> ['hello', '[', 'mask', ']', '!']
     """
     def __init__(
             self,
@@ -81,6 +85,7 @@ class ToSegment:
             sep: split seq symbol, for `shallow_split()`
             sep_pattern (str or re.Pattern): re pattern seq, not work while `sep` is set, for `shallow_split()`
             sp_tokens: for `from_paragraph_with_sp_tokens()`
+            cleaner (Callable): a func that accepted one parameter of text
             is_split_punctuation: for `deep_split()`
             is_word_piece: for `deep_split()`
             vocab: for `from_paragraph_with_word_piece()`
@@ -275,7 +280,8 @@ class ToSegments:
         """
         import jieba
 
-        paragraphs = map(self.to_segment.cleaner, paragraphs)
+        if self.to_segment.cleaner:
+            paragraphs = map(self.to_segment.cleaner, paragraphs)
         segments = map(jieba.lcut, paragraphs)
         segments = map(self.to_segment.deep_split, segments)
 

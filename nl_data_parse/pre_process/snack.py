@@ -1,3 +1,8 @@
+DO_NOT_PAD = 0
+AUTO = 1
+MAX_LEN = 2
+
+
 def add_token(seqs, start_obj=None, end_obj=None):
     if start_obj is not None:
         seqs = [[start_obj] + s for s in seqs]
