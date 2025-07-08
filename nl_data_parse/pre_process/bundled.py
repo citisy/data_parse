@@ -1020,13 +1020,13 @@ class WhisperTokenizer:
                 self.normalize_zh_punc,
                 cleaner.FileterDuplicateBlank().from_paragraph,
                 cleaner.Num2Zh().from_paragraph
-            )
+            )(paragraph)
 
         else:
             return Apply(
                 cleaner.FileterDuplicateBlank().from_paragraph,
                 cleaner.Num2En().from_paragraph
-            )
+            )(paragraph)
 
     def normalize_zh_punc(self, paragraph: str):
         paragraph = re.sub('[,、]+', '，', paragraph)

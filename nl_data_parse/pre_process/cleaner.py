@@ -190,9 +190,6 @@ class NormalizeEn(Normalize):
 
 class NormalizeNum(Base):
     def from_paragraph(self, paragraph: str):
-        import inflect
-        inflect_parser = inflect.engine()
-
         new_paragraph = []
         while True:
             r = re.search('\d+', paragraph)
