@@ -271,7 +271,7 @@ class GPT2Tokenizer:
             self.init()
         return vocab_size
 
-    def encode_segments(self, segments):
+    def encode_segments(self, segments, **kwargs):
         segments_ids = self.numerizer.encode(segments)
 
         seq_lens = [len(t) for t in segments_ids]
@@ -849,10 +849,13 @@ class Qwen2Tokenizer(GPT2Tokenizer):
             segment=segment,
         )
 
-    def encode_segment(self, segment: List[str]):
+    def encode_segment(self, segment: List[str], **kwargs):
         paragraph = '\n'.join(segment)
         segments = self.spliter.from_paragraphs([paragraph])
-        return self.encode_segments(segments)
+        return self.encode_segments(segments, **kwargs)
+
+    def encode_paragraphs(self, paragraphs, **kwargs):
+        return self.encode_segment(paragraphs, **kwargs)
 
 
 class Qwen2VLTokenizer(Qwen2Tokenizer):
