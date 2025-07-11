@@ -220,19 +220,19 @@ class GPT2Tokenizer:
         import regex  # note, do not use `re` mudule
 
         self.__dict__.update(kwargs)
-
+        # https://github.com/openai/gpt-2/blob/master/src/encoder.py#L53
+        self.sep_pattern = regex.compile(self.regex_str)
         self.byte_pairs = byte_pairs
         self.word_dict = word_dict
-        self.vocab_size = len(word_dict)
+        self.init()
+
+    def init(self):
+        self.vocab_size = len(self.word_dict)
         self.sp_word_dict = {self.sp_token_dict[k]: self.sp_id_dict[k] for k in self.sp_token_dict}
         self.word_dict.update(self.sp_word_dict)
 
-        # https://github.com/openai/gpt-2/blob/master/src/encoder.py#L53
-        self.sep_pattern = regex.compile(self.regex_str)
-
         self.spliter = spliter.ToSegments(sep_pattern=self.sep_pattern, is_split_punctuation=False, sp_tokens=set(self.sp_token_dict.values()))
         self.numerizer = numeralizer.BytePairEncode(self.byte_pairs, self.word_dict, sp_word_dict=self.sp_word_dict)
-
         self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
         self.__dict__.update({f'{k}_id': v for k, v in self.sp_id_dict.items()})
 
@@ -250,6 +250,26 @@ class GPT2Tokenizer:
         byte_pairs = os_lib.loader.load_txt(encoder_fn)
         byte_pairs = byte_pairs[1:]
         return cls(byte_pairs, word_dict, **kwargs)
+
+    def update_sp_token(self, sp_token_dict, sp_id_dict={}):
+        self.sp_token_dict.update(sp_token_dict)
+        for k, v in sp_token_dict.items():
+            if k in sp_id_dict:
+                sp_id = sp_id_dict[k]
+            elif v in self.word_dict:
+                sp_id = self.word_dict[v]
+            else:
+                sp_id = self.register_token(v, reinit=False)
+            self.sp_id_dict[k] = sp_id
+
+        self.init()
+
+    def register_token(self, token, reinit=True):
+        vocab_size = len(self.word_dict)
+        self.word_dict[token] = vocab_size
+        if reinit:
+            self.init()
+        return vocab_size
 
     def encode_segments(self, segments):
         segments_ids = self.numerizer.encode(segments)
@@ -1049,7 +1069,7 @@ class WhisperTokenizer:
             seq_lens.append(len(segment_ids))
 
         if pad_type == snack.MAX_LEN:
-            segments_ids = snack.pad(segments_ids, max(seq_lens), pad_obj=self.ignore_id)
+            segments_ids = snack.pad(segments_ids, max(seq_lens), pad_obj=self.pad_id)
 
         return dict(
             segments_ids=segments_ids,
