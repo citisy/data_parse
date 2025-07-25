@@ -271,11 +271,11 @@ class GPT2Tokenizer:
             self.init()
         return vocab_size
 
-    def encode_segments(self, segments, **kwargs):
+    def encode_segments(self, segments, **align_kwargs):
         segments_ids = self.numerizer.encode(segments)
 
         seq_lens = [len(t) for t in segments_ids]
-        segments_ids = snack.align(segments_ids, max_seq_len=self.max_seq_len, pad_obj=self.pad_id)
+        segments_ids = snack.align(segments_ids, max_seq_len=self.max_seq_len, pad_obj=self.pad_id, **align_kwargs)
 
         return dict(
             segments_ids=segments_ids,
@@ -350,17 +350,17 @@ class T5Tokenizer:
         sp_model = SentencePieceProcessor(model_file=encoder_fn)
         return cls(sp_model, vocabs, **kwargs)
 
-    def encode_paragraphs(self, paragraphs, auto_pad=True):
+    def encode_paragraphs(self, paragraphs, pad_type=snack.AUTO):
         segments_ids = self.sp_model.encode(paragraphs)
         valid_segment_tags = [[True] * len(seg) for seg in segments_ids]
         seq_lens = [len(t) for t in segments_ids]
         segments_ids = snack.align(
             segments_ids, self.max_seq_len,
-            end_obj=self.eos_id, pad_obj=self.pad_id, auto_pad=auto_pad
+            end_obj=self.eos_id, pad_obj=self.pad_id, pad_type=pad_type
         )
         valid_segment_tags = snack.align(
             valid_segment_tags, max_seq_len=self.max_seq_len,
-            end_obj=True, pad_obj=False, auto_pad=auto_pad
+            end_obj=True, pad_obj=False, pad_type=pad_type
         )
 
         return dict(
@@ -478,22 +478,22 @@ class CLIPTokenizer:
         byte_pairs = byte_pairs[1:]
         return cls(byte_pairs, word_dict, **kwargs)
 
-    def encode_paragraphs(self, paragraphs, auto_pad=False):
+    def encode_paragraphs(self, paragraphs, pad_type=snack.MAX_LEN):
         segments = self.spliter.from_paragraphs(paragraphs)
-        r = self.encode_segments(segments, auto_pad=auto_pad)
+        r = self.encode_segments(segments, pad_type=pad_type)
         return r
 
-    def encode_segments(self, segments, auto_pad=False):
+    def encode_segments(self, segments, pad_type=snack.MAX_LEN):
         valid_segment_tags = [[True] * len(seg) for seg in segments]
         valid_segment_tags = snack.align(
             valid_segment_tags, max_seq_len=self.max_seq_len,
-            start_obj=True, end_obj=True, pad_obj=False, auto_pad=auto_pad,
+            start_obj=True, end_obj=True, pad_obj=False, pad_type=pad_type,
         )
 
         segments_ids = self.numerizer.encode(segments)
         seq_lens = [len(t) for t in segments_ids]
         segments_ids = snack.align(
-            segments_ids, max_seq_len=self.max_seq_len, auto_pad=auto_pad,
+            segments_ids, max_seq_len=self.max_seq_len, pad_type=pad_type,
             start_obj=self.bos_id,
             end_obj=self.eos_id,
             pad_obj=self.pad_id,
@@ -505,7 +505,7 @@ class CLIPTokenizer:
             valid_segment_tags=valid_segment_tags
         )
 
-    def encode_attention_paragraphs(self, paragraphs, auto_pad=False):
+    def encode_attention_paragraphs(self, paragraphs, pad_type=snack.MAX_LEN):
         _paragraphs, _weights, idx = [], [], []
         for i, paragraph in enumerate(paragraphs):
             for p, weight in self.parse_prompt_attention(paragraph):
@@ -537,14 +537,14 @@ class CLIPTokenizer:
         segments_weights.append(tmp_weights)
 
         segments_ids = snack.align(
-            segments_ids, max_seq_len=self.max_seq_len, auto_pad=auto_pad,
+            segments_ids, max_seq_len=self.max_seq_len, pad_type=pad_type,
             start_obj=self.bos_id,
             end_obj=self.eos_id,
             pad_obj=self.pad_id,
         )
 
         segments_weights = snack.align(
-            segments_weights, max_seq_len=self.max_seq_len, auto_pad=auto_pad,
+            segments_weights, max_seq_len=self.max_seq_len, pad_type=pad_type,
             start_obj=1.,
             end_obj=1.,
             pad_obj=1.,
@@ -812,8 +812,8 @@ class Qwen2Tokenizer(GPT2Tokenizer):
     @property
     def chat_template(self):
         return dict(
-            # <|im_start|>{role}\n{content}<|im_end|>
-            content=f'{self.im_start_token}{{role}}\n{{content}}{self.im_end_token}',
+            # <|im_start|>{role}\n{content}<|im_end|>\n
+            content=f'{self.im_start_token}{{role}}\n{{content}}{self.im_end_token}\n',
         )
 
     def encode_dialog(self, dialog: List[Dict], **kwargs) -> dict:
@@ -850,9 +850,14 @@ class Qwen2Tokenizer(GPT2Tokenizer):
         )
 
     def encode_segment(self, segment: List[str], **kwargs):
-        paragraph = '\n'.join(segment)
-        segments = self.spliter.from_paragraphs([paragraph])
-        return self.encode_segments(segments, **kwargs)
+        segments = self.spliter.from_paragraphs(segment)
+        ret = self.encode_segments(segments, pad_type=snack.DO_NOT_PAD, **kwargs)
+        ret = dict(
+            segments_ids=[[_id for ids in ret['segments_ids'] for _id in ids]],
+            seq_lens=[sum(ret['seq_lens'])],
+            per_seq_lens=[ret['seq_lens']]
+        )
+        return ret
 
     def encode_paragraphs(self, paragraphs, **kwargs):
         return self.encode_segment(paragraphs, **kwargs)
@@ -939,7 +944,7 @@ class Qwen2VLTokenizer(Qwen2Tokenizer):
             "content": [
                 {
                     "type": "image",
-                    "image": np.ndarray,
+                    "image": np.ndarray,    # with shape of (c,h,w), and has been augmented
                 },
                 {
                     "type": "text",
@@ -1012,8 +1017,7 @@ class Qwen2VLTokenizer(Qwen2Tokenizer):
         )
 
     def encode_image(self, image):
-        if not isinstance(image, np.ndarray):
-            image = os_lib.loader.load_img(image)
+        assert isinstance(image, np.ndarray), 'image must be np.ndarray'
 
         pixel_value, grid_thw = self.patch_image(image, temporal_patch_size=2, patch_size=14, merge_size=2)
         return pixel_value, grid_thw

@@ -18,13 +18,13 @@ def greedy_search(x, seq_lens, score_fn, **score_fn_kwargs):
     pass
 
 
-def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, **score_fn_kwargs):
+def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, start_pos=0, **score_fn_kwargs):
     assert seq_lens is not None
 
     batch_size = len(x)
     eos_flag = [False] * batch_size
 
-    prev_pos = 0
+    prev_pos = start_pos
     min_pos = min(seq_lens)
 
     for cur_pos in range(min_pos, min_pos + max_gen_len):
@@ -66,4 +66,3 @@ def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, **s
 
 def prefix_beam_search(x):
     pass
-

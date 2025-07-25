@@ -275,7 +275,7 @@ class ToSegments:
     def from_paragraphs_by_jieba(self, paragraphs: List[str]) -> List[List[str]]:
         """see also cleaner
         Usage:
-            >>> ToSegments().from_paragraphs_by_jieba(['你好 世界！'])
+            >>> ToSegments(is_split_punctuation=False).from_paragraphs_by_jieba(['你好 世界！'])
             [['你好', ' ', '世界', '！']]
         """
         import jieba

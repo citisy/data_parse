@@ -40,12 +40,18 @@ def pad(seqs, max_seq_len, pad_obj=None):
     return _segments
 
 
-def align(seqs, max_seq_len, start_obj=None, end_obj=None, auto_pad=True, pad_obj=None):
+def align(seqs, max_seq_len, start_obj=None, end_obj=None, pad_type=AUTO, pad_obj=None):
     """all sequence in sequences has the same length,
     e.g.: [[seg]] -> [[start_obj], [seg], [end_obj], [pad_obj]]"""
     seqs = add_token(seqs, start_obj=start_obj, end_obj=end_obj)
     seqs = truncate(seqs, seq_len=max_seq_len)
-    if auto_pad:
+    if pad_type == DO_NOT_PAD:
+        return seqs
+
+    if pad_type == AUTO:
         max_seq_len = min(max(len(s) for s in seqs), max_seq_len)
+    elif pad_type == MAX_LEN:
+        pass
+
     seqs = pad(seqs, max_seq_len=max_seq_len, pad_obj=pad_obj)
     return seqs
