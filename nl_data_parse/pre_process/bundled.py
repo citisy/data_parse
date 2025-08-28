@@ -20,7 +20,9 @@ class Apply:
 
 
 class SimpleTokenizer:
-    def __init__(self, vocab, word_dict=None, sp_token_dict=None, **kwargs):
+    max_seq_len = 512
+
+    def __init__(self, vocab, word_dict=None, sp_token_dict=None, spliter=None, **kwargs):
         self.__dict__.update(kwargs)
         self.vocab = set(vocab)
         self.vocab_size = len(vocab)
@@ -33,6 +35,7 @@ class SimpleTokenizer:
             self.__dict__.update({f'{k}_token': v for k, v in self.sp_token_dict.items()})
             self.__dict__.update({f'{k}_id': v for k, v in self.sp_id_dict.items()})
 
+        self.spliter = spliter
         self.numeralizer = numeralizer.KeyValueEncode(
             self.word_dict,
             self.word_inv_dict,
@@ -43,6 +46,20 @@ class SimpleTokenizer:
     def from_pretrained(cls, vocab_fn, **kwargs):
         vocab = os_lib.loader.auto_load(vocab_fn)
         return cls(vocab, **kwargs)
+
+    def encode_paragraphs(self, paragraphs: List[str]):
+        assert self.spliter is not None, 'If use this method, spliter would be set first!'
+        segments = self.spliter.from_paragraphs(paragraphs)
+        segments_ids = self.encode_segments(segments)
+        seq_lens = [len(t) for t in segments_ids]
+        segments_ids = snack.align(
+            segments_ids, max_seq_len=self.max_seq_len,
+            pad_obj=self.pad_id
+        )
+        return dict(
+            segments_ids=segments_ids,
+            seq_lens=seq_lens
+        )
 
     def encode_segments(self, segments: List[List[str]]):
         return self.numeralizer.encode(segments)
@@ -183,9 +200,9 @@ class BertTokenizer:
         """
 
         Args:
-            segments_ids:
-            valid_segment_tags: bool, mask for segments
-            seq_lens:
+            segments_ids (List[List[int]]):
+            valid_segment_tags (List[bool]): mask for segments
+            seq_lens (List[int]):
 
         """
         if valid_segment_tags is not None:
@@ -564,12 +581,6 @@ class CLIPTokenizer:
           (abc) - increases attention to abc by a multiplier of 1.1
           (abc:3.12) - increases attention to abc by a multiplier of 3.12
           [abc] - decreases attention to abc by a multiplier of 1.1
-          \( - literal character '('
-          \[ - literal character '['
-          \) - literal character ')'
-          \] - literal character ']'
-          \\ - literal character '\'
-          anything else - just text
 
         >>> tokenizer = CLIPTokenizer(...)
         >>> tokenizer.parse_prompt_attention('normal text')
@@ -851,7 +862,8 @@ class Qwen2Tokenizer(GPT2Tokenizer):
 
     def encode_segment(self, segment: List[str], **kwargs):
         segments = self.spliter.from_paragraphs(segment)
-        ret = self.encode_segments(segments, pad_type=snack.DO_NOT_PAD, **kwargs)
+        kwargs.update(pad_type=snack.DO_NOT_PAD)
+        ret = self.encode_segments(segments, **kwargs)
         ret = dict(
             segments_ids=[[_id for ids in ret['segments_ids'] for _id in ids]],
             seq_lens=[sum(ret['seq_lens'])],

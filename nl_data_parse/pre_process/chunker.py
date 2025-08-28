@@ -19,7 +19,6 @@ from typing import List
 import numpy as np
 from tqdm import tqdm
 
-from utils.visualize import TextVisualize
 from . import spliter
 
 
@@ -361,7 +360,7 @@ class RetentionToChunkedSegments(ToChunkedSegments):
     min_len: int
     verbose = False
 
-    def from_segments(self, segments: List[List[str]]) -> List[str]:
+    def from_segments(self, segments: List[List[str]]) -> List[List[str]]:
         """
          Usage:
             >>> segments = spliter.ToSegments().from_paragraphs([f'hello{i}! world{i}!' for i in range(5)])
@@ -372,6 +371,7 @@ class RetentionToChunkedSegments(ToChunkedSegments):
         chunked_segment = []
 
         if self.verbose:
+            from utils.visualize import TextVisualize
             segments = tqdm(segments, desc=TextVisualize.highlight_str('Chunk segments'))
 
         for p in segments:
@@ -390,7 +390,7 @@ class RetentionToChunkedSegments(ToChunkedSegments):
 
         return chunked_segments
 
-    def from_segment(self, segment: List[str]) -> List[str]:
+    def from_segment(self, segment: List[str]) -> List[List[str]]:
         """
          Usage:
             >>> spliter.ToSegment().from_paragraph(''.join([f'hello{i}! world{i}!' for i in range(5)]))
@@ -436,7 +436,7 @@ class RetentionToChunkedSegments(ToChunkedSegments):
     def count_paragraphs_len(paragraphs):
         return sum([len(p) for p in paragraphs])
 
-    def from_paragraphs(self, paragraphs: List[str]) -> List[str]:
+    def from_paragraphs(self, paragraphs: List[str]) -> List[List[str]]:
         """only counting the len of chunks different from `from_segment`"""
         chunked_segments = []
         rest = paragraphs

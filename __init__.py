@@ -19,4 +19,5 @@ class DataRegister(Enum):
     GRAY_ARRAY = 2.1
     NPY = 2.2
     BASE64 = 3
-    Zip = 4
+    ZIP = 4
+    URL = 5
