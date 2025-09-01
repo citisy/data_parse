@@ -575,7 +575,7 @@ class CLIPTokenizer:
         return r
 
     def parse_prompt_attention(self, paragraph):
-        """copy from https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/prompt_parser.py
+        r"""copy from https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/prompt_parser.py
         Parses a string with attention tokens and returns a list of pairs: text and its associated weight.
         Accepted tokens are:
           (abc) - increases attention to abc by a multiplier of 1.1
@@ -589,7 +589,7 @@ class CLIPTokenizer:
         [['an ', 1.0], ['important', 1.1], [' word', 1.0]]
         >>> tokenizer.parse_prompt_attention('(unbalanced')
         [['unbalanced', 1.1]]
-        >>> tokenizer.parse_prompt_attention('\(literal\]')
+        >>> tokenizer.parse_prompt_attention(r'\(literal\]')
         [['(literal]', 1.0]]
         >>> tokenizer.parse_prompt_attention('(unnecessary)(parens)')
         [['unnecessaryparens', 1.1]]

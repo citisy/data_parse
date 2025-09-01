@@ -297,7 +297,7 @@ class KPiecesToChunkedParagraphs(ToChunkedParagraphs):
     """chunk to k pieces whose text length as same as possible"""
     k: int = 5
     spliter = spliter.ToSegment(
-        sep_pattern='.*?[。\.!?！？\];；,，、》）}]',
+        sep_pattern=r'.*?[。\.!?！？\];；,，、》）}]',
         is_split_punctuation=False
     )
 

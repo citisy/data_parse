@@ -36,14 +36,14 @@ def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, sta
 
         x = torch.cat([x, torch.zeros((batch_size, 1)).to(x)], dim=-1)
 
-        for index in range(batch_size):
-            if eos_flag[index]:
+        for batch in range(batch_size):
+            if eos_flag[batch]:
                 continue
 
-            if x[index][cur_pos] != 0:
+            if x[batch][cur_pos] != 0:
                 continue
 
-            preds = logits[index, -1]
+            preds = logits[batch, -1]
             arg = torch.argsort(preds, descending=True)
             keep = arg[:top_k]
             preds = preds[keep]
@@ -51,10 +51,10 @@ def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, sta
 
             # random sampling
             next_id = keep[preds.multinomial(1)[0]]
-            x[index][cur_pos] = next_id
+            x[batch][cur_pos] = next_id
 
             if next_id in eos_ids:
-                eos_flag[index] = True
+                eos_flag[batch] = True
 
         if all(eos_flag):
             break
