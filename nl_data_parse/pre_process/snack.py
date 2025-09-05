@@ -1,3 +1,5 @@
+from utils.excluded.charset_dict import utf8_pattern_dict
+
 DO_NOT_PAD = 0
 AUTO = 1
 MAX_LEN = 2
@@ -11,6 +13,25 @@ def add_token(seqs, start_obj=None, end_obj=None):
         seqs = [s + [end_obj] for s in seqs]
 
     return seqs
+
+
+def add_end_token(seqs):
+    """
+    >>> seqs = ['hello', 'hello.']
+    >>> add_end_token(seqs)
+    ['hello.', 'hello.']
+
+    """
+    new_seqs = []
+    for s in seqs:
+        char = s[-1]
+        if not (utf8_pattern_dict['en_pr'].match(char) or utf8_pattern_dict['cjk_pr'].match(char)):
+            if utf8_pattern_dict['zh'].match(char):
+                s += '。'
+            else:
+                s += '.'
+        new_seqs.append(s)
+    return new_seqs
 
 
 def joint(seq_pairs, sep_obj=None, keep_end=True):
