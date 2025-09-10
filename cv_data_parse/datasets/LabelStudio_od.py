@@ -1,12 +1,11 @@
-import os
 import json
-import cv2
-import shutil
-import numpy as np
-from utils import os_lib, cv_utils
-from .base import DataRegister, DataLoader, DataSaver, get_image, save_image
-from tqdm import tqdm
+import os
 from pathlib import Path
+
+import numpy as np
+
+from utils import cv_utils, os_lib
+from .base import DataLoader, DataRegister, DataSaver, DatasetGenerator, get_image, save_image
 
 
 class Loader(DataLoader):
@@ -28,22 +27,42 @@ class Loader(DataLoader):
             gen_func = json.load(f)
         return self.gen_data(gen_func, set_task=set_task, **kwargs)
 
-    def get_ret(self, js, image_type=DataRegister.PATH, set_task='label_studio', **kwargs) -> dict:
+    def get_ret(self, js, image_type=DataRegister.PATH, set_task='label_studio', task='annotations', **kwargs) -> dict:
         image_path = Path(js['data']['image'])
         image_root = str(image_path.parent)
-        sub_id, _id = image_path.name.split('-', 1)
+        image_name = image_path.name
+        if '-' in image_name:
+            sub_id, _id = image_name.split('-', 1)
+        else:
+            sub_id, _id = '', image_name
         image_path = f'{self.data_dir}/images/{set_task}/{_id}'
         image_path = os.path.abspath(image_path)
         image = get_image(image_path, image_type)
 
         bboxes = []
+        segmentations = []
         classes = []
-        for a in js['annotations']:
+        for a in js[task]:
             for r in a['result']:
                 v = r['value']
-                bboxes.append([v['x'], v['y'], v['width'], v['height']])
-                classes.append(self.classes.index(v['rectanglelabels'][0]))
-                size = (r['original_height'], r['original_width'], 3)
+                if v['type'] == 'rectanglelabels':
+                    bboxes.append([v['x'], v['y'], v['width'], v['height']])
+                    classes.append(self.classes.index(v['rectanglelabels'][0]))
+                    size = (r['original_height'], r['original_width'], 3)
+                elif v['type'] == 'polygonlabels':
+                    points = r['value']['points']
+                    points = np.array(points)
+                    points /= 100
+                    h, w = image.shape[:2]
+                    points[:, 0] *= w
+                    points[:, 1] *= h
+                    points = points.astype(int)
+
+                    points = np.clip(points, 0, [w, h], points)
+
+                    segmentations.append(points.tolist())
+                    classes.append(self.classes.index(v['polygonlabels'][0]))
+                    size = (r['original_height'], r['original_width'], 3)
 
         bboxes = np.array(bboxes)
         bboxes /= 100
@@ -57,18 +76,13 @@ class Loader(DataLoader):
             image=image,
             size=size,
             bboxes=bboxes,
+            segmentations=segmentations,
             classes=classes
         )
 
 
 class Saver(DataSaver):
-    classes = []
-
-    def __call__(self, data, set_type=DataRegister.FULL, image_type=DataRegister.PATH, **kwargs):
-        os_lib.mk_dir(f'{self.data_dir}/images')
-        super().__call__(data, set_type, image_type, **kwargs)
-
-    def _call(self, iter_data, image_type=DataRegister.PATH, set_task='label_studio', cls_alias=None, is_save_image=True, **kwargs):
+    def _call(self, iter_data, image_type=DataRegister.PATH, set_task='label_studio', task='annotations', cls_alias=None, is_save_image=True, **kwargs):
         rets = []
         for dic in iter_data:
             _id = dic['_id']
@@ -86,15 +100,17 @@ class Saver(DataSaver):
             else:
                 raise 'must be set size or make image the type of np.ndarray'
 
-            bboxes = np.array(dic['bboxes']).reshape(-1, 4)
-            bboxes = cv_utils.CoordinateConvert.top_xyxy2top_xywh(bboxes, wh=(size[1], size[0]), blow_up=False)
-            bboxes *= 100
-            bboxes = bboxes.tolist()
+            result = []
+
             classes = dic['classes']
             if cls_alias:
                 classes = [cls_alias[i] for i in classes]
 
-            result = []
+            bboxes = np.array(dic['bboxes']).reshape(-1, 4)
+            bboxes = cv_utils.CoordinateConvert.top_xyxy2top_xywh(bboxes, wh=(size[1], size[0]), blow_up=False)
+            bboxes *= 100
+            bboxes = bboxes.tolist()
+
             for box, cls in zip(bboxes, classes):
                 result.append(dict(
                     original_width=size[1],
@@ -108,15 +124,57 @@ class Saver(DataSaver):
                         rotation=0,
                         rectanglelabels=[cls]
                     ),
-                    type='rectanglelabels'
+                    type='rectanglelabels',
+                    from_name="label",
+                    to_name="image",
                 ))
 
-            rets.append(dict(
-                data=dict(image=f'{image_root}/{sub_id}-{_id}'),
-                annotations=[dict(
+            segmentations = dic['segmentations']
+            for points, cls in zip(segmentations, classes):
+                w = size[1]
+                h = size[0]
+                points[:, 0] /= w
+                points[:, 1] /= h
+                points *= 100
+                points = points.tolist()
+                result.append(dict(
+                    original_width=size[1],
+                    original_height=size[0],
+                    image_rotation=0,
+                    value=dict(
+                        points=points,
+                        rotation=0,
+                        polygonlabels=[cls]
+                    ),
+                    type='polygonlabels',
+                    from_name="label",
+                    to_name="image",
+                ))
+
+            if sub_id:
+                image = f'{image_root}/{sub_id}-{_id}'
+            else:
+                image = f'{image_root}/{_id}'
+            rets.append({
+                'data': dict(image=image),
+                task: [dict(
                     result=result
                 )]
-            ))
+            })
 
         os_lib.saver.save_json(rets, f'{self.data_dir}/{set_task}.json')
 
+
+
+class MyGenerator(DatasetGenerator):
+    def gen_sets(self, list_iter_data, *args, **kwargs):
+        _iter_data = []
+        for iter_data in list_iter_data:
+            for ret in iter_data:
+                ret.pop('image')
+                _iter_data.append(ret)
+        return super().gen_sets(_iter_data, *args, **kwargs)
+
+    def save_func(self, iter_data, candidate_ids, set_name, set_task=None, **kwargs):
+        save_data = [iter_data[i] for i in candidate_ids]
+        os_lib.saver.save_json(save_data, f'{self.data_dir}/{set_task}.{set_name}.json')
