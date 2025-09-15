@@ -316,13 +316,14 @@ class T5Tokenizer:
         **additional_sp_token_dict
     }
 
+    # note, there are 32000 in sp_model.vocab_size(), and 100 in additional_sp_token,
+    # but got vocab_size of 32128 by official T5 model, so doubtful how to get the number
+    # self.vocab_size: int = self.sp_model.vocab_size()
+    vocab_size: int = 32128
+
     def __init__(self, sp_model: 'SentencePieceProcessor', vocabs, max_seq_len=512, **kwargs):
         self.max_seq_len = max_seq_len
         self.sp_model = sp_model
-        # note, there are 32000 in sp_model.vocab_size(), and 100 in additional_sp_token,
-        # but got vocab_size of 32128 by official T5 model, so doubtful how to get the number
-        # self.vocab_size: int = self.sp_model.vocab_size()
-        self.vocab_size: int = 32128
 
         sp_token_dict = {}
         sp_id_dict = {}
@@ -345,9 +346,10 @@ class T5Tokenizer:
         self.pad_id: int = self.sp_model.pad_id()
         self.unk_id: int = self.sp_model.unk_id()
 
-        self.eos_token: str = sp_id_to_token_dict[self.eos_id]
-        self.pad_token: str = sp_id_to_token_dict[self.pad_id]
-        self.unk_token: str = sp_id_to_token_dict[self.unk_id]
+        # note, the sp_id is not corresponding to sp_token always
+        # self.eos_token: str = sp_id_to_token_dict[self.eos_id]
+        # self.pad_token: str = sp_id_to_token_dict[self.pad_id]
+        # self.unk_token: str = sp_id_to_token_dict[self.unk_id]
 
         self.__dict__.update(kwargs)
 
@@ -416,6 +418,30 @@ class T5Tokenizer:
             segments.append(' '.join(seg))
 
         return segments
+
+
+class XLMRobertaTokenizer(T5Tokenizer):
+    fairseq_offset = 1
+
+    def encode_paragraphs(self, paragraphs, pad_type=snack.AUTO):
+        segments_ids = self.sp_model.encode(paragraphs)
+        segments_ids = [[_id + self.fairseq_offset for _id in ids] for ids in segments_ids]
+        valid_segment_tags = [[True] * len(seg) for seg in segments_ids]
+        seq_lens = [len(t) + 2 for t in segments_ids]   # todo: whether count the len after add sp tokens?
+        segments_ids = snack.align(
+            segments_ids, self.max_seq_len,
+            start_obj=0, end_obj=self.eos_id, pad_obj=1, pad_type=pad_type
+        )
+        valid_segment_tags = snack.align(
+            valid_segment_tags, max_seq_len=self.max_seq_len,
+            start_obj=True, end_obj=True, pad_obj=False, pad_type=pad_type
+        )
+
+        return dict(
+            segments_ids=segments_ids,
+            valid_segment_tags=valid_segment_tags,
+            seq_lens=seq_lens
+        )
 
 
 class CLIPTokenizer:
