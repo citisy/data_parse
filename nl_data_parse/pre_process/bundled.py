@@ -4,7 +4,7 @@ from typing import List, Dict
 import numpy as np
 import torch
 
-from utils import os_lib
+from utils import math_utils, os_lib
 from utils.excluded import charset_dict
 from . import spliter, chunker, cleaner, snack, numeralizer, perturbation
 
@@ -320,9 +320,9 @@ class T5Tokenizer:
     # but got vocab_size of 32128 by official T5 model, so doubtful how to get the number
     # self.vocab_size: int = self.sp_model.vocab_size()
     vocab_size: int = 32128
+    max_seq_len = 512
 
-    def __init__(self, sp_model: 'SentencePieceProcessor', vocabs, max_seq_len=512, **kwargs):
-        self.max_seq_len = max_seq_len
+    def __init__(self, sp_model: 'SentencePieceProcessor', vocabs, **kwargs):
         self.sp_model = sp_model
 
         sp_token_dict = {}
@@ -423,11 +423,11 @@ class T5Tokenizer:
 class XLMRobertaTokenizer(T5Tokenizer):
     fairseq_offset = 1
 
-    def encode_paragraphs(self, paragraphs, pad_type=snack.AUTO):
+    def encode_paragraphs(self, paragraphs: List[str], pad_type=snack.AUTO):
         segments_ids = self.sp_model.encode(paragraphs)
         segments_ids = [[_id + self.fairseq_offset for _id in ids] for ids in segments_ids]
         valid_segment_tags = [[True] * len(seg) for seg in segments_ids]
-        seq_lens = [len(t) + 2 for t in segments_ids]   # todo: whether count the len after add sp tokens?
+        seq_lens = [len(t) + 2 for t in segments_ids]  # todo: whether count the len after add sp tokens?
         segments_ids = snack.align(
             segments_ids, self.max_seq_len,
             start_obj=0, end_obj=self.eos_id, pad_obj=1, pad_type=pad_type
@@ -435,6 +435,38 @@ class XLMRobertaTokenizer(T5Tokenizer):
         valid_segment_tags = snack.align(
             valid_segment_tags, max_seq_len=self.max_seq_len,
             start_obj=True, end_obj=True, pad_obj=False, pad_type=pad_type
+        )
+
+        return dict(
+            segments_ids=segments_ids,
+            valid_segment_tags=valid_segment_tags,
+            seq_lens=seq_lens
+        )
+
+    def encode_pair_paragraphs(self, pair_paragraphs: List[List[str]], pad_type=snack.AUTO):
+        pair_paragraphs_t = math_utils.transpose(pair_paragraphs)
+        pair_segments_ids_t = []
+        for paragraphs in pair_paragraphs_t:
+            segments_ids = self.sp_model.encode(list(paragraphs))
+            segments_ids = [[_id + self.fairseq_offset for _id in ids] for ids in segments_ids]
+            pair_segments_ids_t.append(segments_ids)
+
+        pair_segments_ids = math_utils.transpose(pair_segments_ids_t)
+
+        segments_ids = []
+        for pair_segments_id in pair_segments_ids:
+            segments_id = [0] + pair_segments_id[0] + [2] + [2] + pair_segments_id[1] + [2]
+            segments_ids.append(segments_id)
+
+        valid_segment_tags = [[True] * len(seg) for seg in segments_ids]
+        seq_lens = [len(t) + 2 for t in segments_ids]
+        segments_ids = snack.align(
+            segments_ids, self.max_seq_len,
+            pad_obj=1, pad_type=pad_type
+        )
+        valid_segment_tags = snack.align(
+            valid_segment_tags, max_seq_len=self.max_seq_len,
+            pad_obj=False, pad_type=pad_type
         )
 
         return dict(

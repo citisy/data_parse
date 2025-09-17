@@ -75,4 +75,5 @@ def align(seqs, max_seq_len, start_obj=None, end_obj=None, pad_type=AUTO, pad_ob
         pass
 
     seqs = pad(seqs, max_seq_len=max_seq_len, pad_obj=pad_obj)
+    seqs = truncate(seqs, seq_len=max_seq_len)
     return seqs
