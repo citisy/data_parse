@@ -448,7 +448,7 @@ class XLMRobertaTokenizer(T5Tokenizer):
         pair_paragraphs_t = math_utils.transpose(pair_paragraphs)
         pair_segments_ids_t = []
         for paragraphs in pair_paragraphs_t:
-            segments_ids = self.sp_model.encode(paragraphs)
+            segments_ids = self.sp_model.encode(list(paragraphs))
             segments_ids = [[_id + self.fairseq_offset for _id in ids] for ids in segments_ids]
             pair_segments_ids_t.append(segments_ids)
 
