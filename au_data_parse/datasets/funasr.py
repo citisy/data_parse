@@ -1,9 +1,9 @@
-import os
 import json
-import numpy as np
-from utils import os_lib
-from .base import DataRegister, DataLoader, DataSaver, DatasetGenerator, get_audio, save_audio
+import os
 from pathlib import Path
+
+from utils import os_lib
+from .base import DataLoader, DataRegister, DataSaver, DatasetGenerator, get_audio, save_audio
 
 
 class Loader(DataLoader):
@@ -33,7 +33,7 @@ class Loader(DataLoader):
     default_set_type = [DataRegister.TRAIN, DataRegister.TEST]
 
     def _call(self, set_type=DataRegister.TRAIN, set_task='', label_dir='labels', **kwargs):
-        gen_func = os_lib.loader.load_jsonl(f'{self.data_dir}/labels/{set_task}/{set_type.value}.jsonl')
+        gen_func = os_lib.loader.load_jsonl(f'{self.data_dir}/{label_dir}/{set_task}/{set_type.value}.jsonl')
         return self.gen_data(gen_func, **kwargs)
 
     def get_ret(self, ret, audio_type=DataRegister.PATH, **kwargs) -> dict:
@@ -80,11 +80,12 @@ class Saver(DataSaver):
         self.gen_data(iter_data, f=f, **gen_kwargs)
         f.close()
 
-    def parse_ret(self, ret, f=None, audio_type=DataRegister.PATH, set_task='', **get_kwargs):
+    def parse_ret(self, ret, f=None, audio_type=DataRegister.PATH, set_task='', is_save_audio=True, **get_kwargs):
         """save_dict={{"source": "", "target": ""}"""
         _id = ret['_id']
         audio_path = os.path.abspath(f'{self.data_dir}/audios/{set_task}/{_id}')
-        save_audio(ret['audio'], audio_path, audio_type)
+        if is_save_audio:
+            save_audio(ret['audio'], audio_path, audio_type)
         save_dict = dict(
             source=audio_path,
             target=ret['text'],
