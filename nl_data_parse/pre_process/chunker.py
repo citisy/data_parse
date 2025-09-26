@@ -393,7 +393,7 @@ class RetentionToChunkedSegments(ToChunkedSegments):
     def from_segment(self, segment: List[str]) -> List[List[str]]:
         """
          Usage:
-            >>> spliter.ToSegment().from_paragraph(''.join([f'hello{i}! world{i}!' for i in range(5)]))
+            >>> segment = spliter.ToSegment().from_paragraph(''.join([f'hello{i}! world{i}!' for i in range(5)]))
             >>> RetentionToChunkedSegments(max_len=7).from_segment(segment)
             [['hello0', '!', 'world0', '!', 'hello1', '!'], ['world1', '!', 'hello2', '!', 'world2', '!'], ['hello3', '!', 'world3', '!', 'hello4', '!'], ['world4', '!']]
         """
@@ -487,6 +487,14 @@ class RetentionToChunkedSegments(ToChunkedSegments):
 
         for i, s in enumerate(segment):
             if s in token:
+                # except eg. 1.2, 1-2, 1:2
+                if (
+                        s in '.-:'
+                        and i > 0 and segment[i - 1].isdigit()
+                        and i < len(segment) - 1 and segment[i + 1].isdigit()
+                ):
+                    continue
+
                 left = segment[:i + 1]
                 right = segment[i + 1:]
                 is_matched = True
@@ -499,7 +507,7 @@ class RandomToChunkedSegments(RetentionToChunkedSegments):
     min_choices = 2
     max_choices = None
 
-    def from_segments(self, segments: List[List[str]]) -> List[str]:
+    def from_segments(self, segments: List[List[str]]) -> List[List[str]]:
         """
          Usage:
             >>> segments = spliter.ToSegments().from_paragraphs([f'hello{i}! world{i}!' for i in range(5)])
@@ -544,6 +552,7 @@ class ToChunkedParagraph(ToChunked):
 
 class HeadToChunkedParagraph(ToChunkedParagraph):
     """only the keep the `max_len` text of the head"""
+
     def from_segment(self, segment) -> str:
         """
          Usage:
@@ -564,6 +573,7 @@ class HeadToChunkedParagraph(ToChunkedParagraph):
 
 class TailToChunkedParagraph(HeadToChunkedParagraph):
     """only the keep the `max_len` text of the tail"""
+
     def from_segment(self, segment) -> str:
         """
          Usage:
@@ -584,6 +594,7 @@ class TailToChunkedParagraph(HeadToChunkedParagraph):
 
 class MiddleToChunkedParagraph(ToChunkedParagraph):
     """only the keep the `max_len` text of the middle"""
+
     def from_segment(self, segment) -> str:
         """
          Usage:

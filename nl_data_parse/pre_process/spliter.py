@@ -248,9 +248,9 @@ class ToSegment:
 
         return [''.join(x) for x in output]
 
-    def from_word_by_word_piece(self, paragraph):
+    def from_word_by_word_piece(self, word: str):
         """'uncased' -> ['un', '##cased']"""
-        chars = list(paragraph)
+        chars = list(word)
         is_bad = False
         start = 0
         segment = []
@@ -272,12 +272,12 @@ class ToSegment:
             start = end
 
         if is_bad:
-            segment = [paragraph]
+            segment = [word]
 
         return segment
 
-    def from_segment_word_piece_v2(self, segment: List[str], timestamp):
-        """['un@@', 'cased'] -> 'uncased'"""
+    def from_segment_by_word_piece_v2(self, segment: List[str], timestamp):
+        """['un@@', 'cased'] -> ['uncased']"""
         groups = []
         cur = []
         for i, t in enumerate(segment):
@@ -286,6 +286,8 @@ class ToSegment:
             if not t.endswith('@@'):
                 groups.append(cur)
                 cur = []
+
+        assert not cur, f'the last word is not allow to be end with "@@" which is {cur}, please check about it'
 
         new_segment = []
         new_timestamps = []
@@ -301,6 +303,48 @@ class ToSegment:
                     t[-1] = timestamp[idx][-1]
                 else:
                     t = timestamp[idx]
+            new_segment.append(s)
+            new_timestamps.append(t)
+
+        return new_segment, new_timestamps
+
+    def from_segment_by_merge_single_char(self, segment: List[str], timestamp):
+        """['n', 'l', 'p', 'is', 'a', 'shorthand', 'word'] -> ['NLP', 'is', 'a', 'shorthand', 'word']"""
+        groups = []
+        cur = []
+        flag = False
+        for i, s in enumerate(segment):
+            if len(s) == 1 and s.isalpha() and s.isascii():  # single en char
+                if flag:
+                    cur.append(i)
+                else:
+                    if cur:
+                        groups.append(cur)
+                    cur = [i]
+                flag = True
+            else:
+                if cur:
+                    groups.append(cur)
+                cur = [i]
+                flag = False
+
+        if cur:
+            groups.append(cur)
+
+        new_segment = []
+        new_timestamps = []
+        for group in groups:
+            s = ''
+            t = []
+            for idx in group:
+                ss = segment[idx]
+                s += ss
+                if t:
+                    t[-1] = timestamp[idx][-1]
+                else:
+                    t = timestamp[idx]
+            if len(group) > 1:
+                s = s.upper()
             new_segment.append(s)
             new_timestamps.append(t)
 
