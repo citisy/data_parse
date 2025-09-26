@@ -314,7 +314,7 @@ class ToSegment:
         cur = []
         flag = False
         for i, s in enumerate(segment):
-            if len(s) == 1 and (s.isalpha() or s.isdigit()) and s.isascii():  # single en char
+            if len(s) == 1 and s.isascii():  # single en char
                 if flag:
                     cur.append(i)
                 else:
