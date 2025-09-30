@@ -40,6 +40,10 @@ class ToChunked:
         """same to from_segment"""
         raise NotImplemented
 
+    @staticmethod
+    def count_paragraphs_len(paragraphs):
+        return sum([len(p) for p in paragraphs])
+
 
 class ToChunkedParagraphs(ToChunked):
     """chunk without dropping any context"""
@@ -132,7 +136,7 @@ class RetentionToChunkedParagraphs(ToChunkedParagraphs):
                 chunks = self.from_paragraph(chunk)
                 chunked_paragraphs.extend(chunks[:-1])
                 chunk = chunks[-1]
-            elif hasattr(self, 'min_len') and len(chunk) >= self.min_len:
+            elif hasattr(self, 'min_len') and self.count_paragraphs_len(chunk) >= self.min_len:
                 chunked_paragraphs.append(chunk)
                 chunk = ''
 
@@ -151,6 +155,7 @@ class RetentionToChunkedParagraphs(ToChunkedParagraphs):
         chunked_paragraphs = []
         rest = paragraph
 
+        old_rest = rest
         while True:
             if len(rest) <= self.max_len:
                 if rest:
@@ -179,17 +184,21 @@ class RetentionToChunkedParagraphs(ToChunkedParagraphs):
                     sect, rest = rest[:self.max_len], rest[self.max_len:]
 
             chunked_paragraphs.append(sect)
+            assert rest != old_rest, paragraph
+            old_rest = rest
 
         return chunked_paragraphs
 
-    @staticmethod
-    def truncate_by_stop_symbol(line, pattern: re.Pattern) -> tuple:
+    def truncate_by_stop_symbol(self, line, pattern: re.Pattern) -> tuple:
         m = re.match(pattern, line)
 
         if m:
             left = line[:m.span()[1]]
             right = line[m.span()[1]:]
-            is_matched = True
+            if hasattr(self, 'min_len') and self.count_paragraphs_len(left) < self.min_len:
+                is_matched = False
+            else:
+                is_matched = True
         else:
             left, right = line, ''
             is_matched = False
@@ -400,6 +409,7 @@ class RetentionToChunkedSegments(ToChunkedSegments):
         chunked_segments = []
         rest = segment
 
+        old_rest = rest
         while True:
             if len(rest) <= self.max_len:
                 if rest:
@@ -429,18 +439,17 @@ class RetentionToChunkedSegments(ToChunkedSegments):
                     sect, rest = keep, tail
 
             chunked_segments.append(sect)
+            assert rest != old_rest, segment
+            old_rest = rest
 
         return chunked_segments
-
-    @staticmethod
-    def count_paragraphs_len(paragraphs):
-        return sum([len(p) for p in paragraphs])
 
     def from_paragraphs(self, paragraphs: List[str]) -> List[List[str]]:
         """only counting the len of chunks different from `from_segment`"""
         chunked_segments = []
         rest = paragraphs
 
+        old_rest = rest
         while True:
             if self.count_paragraphs_len(rest) <= self.max_len:
                 if rest:
@@ -477,11 +486,12 @@ class RetentionToChunkedSegments(ToChunkedSegments):
                     sect, rest = keep, tail
 
             chunked_segments.append(sect)
+            assert rest != old_rest, paragraphs
+            old_rest = rest
 
         return chunked_segments
 
-    @staticmethod
-    def truncate_by_stop_token(segment, token: set) -> tuple:
+    def truncate_by_stop_token(self, segment, token: set) -> tuple:
         is_matched = False
         left, right = segment, []
 
@@ -497,7 +507,10 @@ class RetentionToChunkedSegments(ToChunkedSegments):
 
                 left = segment[:i + 1]
                 right = segment[i + 1:]
-                is_matched = True
+                if hasattr(self, 'min_len') and self.count_paragraphs_len(left) < self.min_len:
+                    is_matched = False
+                else:
+                    is_matched = True
 
         return left, right, is_matched
 

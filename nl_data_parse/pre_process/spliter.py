@@ -287,7 +287,8 @@ class ToSegment:
                 groups.append(cur)
                 cur = []
 
-        assert not cur, f'the last word is not allow to be end with "@@" which is {cur}, please check about it'
+        if cur:
+            groups.append(cur)
 
         new_segment = []
         new_timestamps = []
