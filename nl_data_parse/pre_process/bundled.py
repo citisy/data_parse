@@ -322,20 +322,21 @@ class T5Tokenizer:
     vocab_size: int = 32128
     max_seq_len = 512
 
-    def __init__(self, sp_model: 'SentencePieceProcessor', vocabs, **kwargs):
+    def __init__(self, sp_model: 'SentencePieceProcessor', vocabs=None, **kwargs):
         self.sp_model = sp_model
 
         sp_token_dict = {}
         sp_id_dict = {}
-        added_tokens = vocabs['added_tokens']
-        for d in added_tokens:
-            k = d['content'][1:-1]
-            sp_token_dict[k] = d['content']
-            sp_id_dict[k] = d['id']
-
         sp_id_to_token_dict = {}
-        for k, _id in sp_id_dict.items():
-            sp_id_to_token_dict[_id] = sp_token_dict[k]
+        if vocabs:
+            added_tokens = vocabs['added_tokens']
+            for d in added_tokens:
+                k = d['content'][1:-1]
+                sp_token_dict[k] = d['content']
+                sp_id_dict[k] = d['id']
+
+            for k, _id in sp_id_dict.items():
+                sp_id_to_token_dict[_id] = sp_token_dict[k]
 
         self.sp_token_dict = sp_token_dict
         self.sp_id_dict = sp_id_dict
@@ -354,7 +355,7 @@ class T5Tokenizer:
         self.__dict__.update(kwargs)
 
     @classmethod
-    def from_pretrained(cls, vocab_fn, encoder_fn, **kwargs):
+    def from_pretrained(cls, encoder_fn, vocab_fn=None, **kwargs):
         """
 
         Args:
@@ -365,7 +366,7 @@ class T5Tokenizer:
         """
         from sentencepiece import SentencePieceProcessor  # pip install sentencepiece
 
-        vocabs = os_lib.loader.load_json(vocab_fn)
+        vocabs = os_lib.loader.load_json(vocab_fn) if vocab_fn else None
         sp_model = SentencePieceProcessor(model_file=encoder_fn)
         return cls(sp_model, vocabs, **kwargs)
 
@@ -389,6 +390,9 @@ class T5Tokenizer:
         )
 
     def decode(self, segments_ids):
+        return self.decode_to_paragraphs(segments_ids)
+
+    def decode_to_paragraphs(self, segments_ids) -> List[str]:
         """
         Args:
             segments_ids (list|np.ndarray|torch.Tensor): bust be a 2-D obj
@@ -399,7 +403,7 @@ class T5Tokenizer:
         elif isinstance(segments_ids, torch.Tensor):
             segments_ids = segments_ids.cpu().numpy().tolist()
 
-        segments = []
+        paragraphs = []
         for segments_id in segments_ids:
             seg = []
             tmp = []
@@ -415,7 +419,33 @@ class T5Tokenizer:
             if tmp:
                 seg.append(self.sp_model.decode(tmp))
 
-            segments.append(' '.join(seg))
+            paragraphs.append(' '.join(seg))
+
+        return paragraphs
+
+    def decode_to_segments(self, segments_ids) -> List[List[str]]:
+        if isinstance(segments_ids, np.ndarray):
+            segments_ids = segments_ids.tolist()
+        elif isinstance(segments_ids, torch.Tensor):
+            segments_ids = segments_ids.cpu().numpy().tolist()
+
+        segments = []
+        for segments_id in segments_ids:
+            seg = []
+            tmp = []
+            for _id in segments_id:
+                if _id in self.sp_id_to_token_dict:
+                    if tmp:
+                        seg.extend(self.sp_model.decode([[i] for i in tmp]))
+                    seg.append(self.sp_id_to_token_dict[_id])
+                    tmp = []
+                else:
+                    tmp.append(_id)
+
+            if tmp:
+                seg.extend(self.sp_model.decode([[i] for i in tmp]))
+
+            segments.append(seg)
 
         return segments
 
