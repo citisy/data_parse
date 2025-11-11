@@ -20,7 +20,7 @@ class MinMax:
 
     def restore(self, ret):
         if 'image' in ret:
-            ret['image'] = ret['image'] * 255
+            ret['image'] = (ret['image'] * 255).astype(np.uint8)
         return ret
 
 

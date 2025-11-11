@@ -90,11 +90,14 @@ class BGR2Gray:
 
 class Keep3Dims:
     """input an array which have any(2, 3 or 4) dims, output an array which have 3-dims"""
+    def __init__(self):
+        self.name = __name__.split('.')[-1] + '.' + self.__class__.__name__
 
     def __call__(self, image, **kwargs):
-        return dict(
-            image=self.apply_image(image)
-        )
+        return {
+            'image': self.apply_image(image),
+            self.name: len(image.shape)
+        }
 
     def apply_image(self, image, *args):
         shape = image.shape
@@ -105,6 +108,13 @@ class Keep3Dims:
         else:
             raise ValueError(f'Do not support shape = {shape}')
         return image
+
+    def restore(self, ret):
+        if self.name in ret:
+            l = ret[self.name]
+            if l == 2:
+                ret['image'] = ret['image'][:, :, 0]
+        return ret
 
 
 class Keep3Channels:
