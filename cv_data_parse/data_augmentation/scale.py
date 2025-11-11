@@ -223,10 +223,17 @@ class Complex:
 
     resize: Optional
     crop: Optional
+    mid_dst: Optional
 
     def __call__(self, image, dst, bboxes=None, **kwargs):
-        ret = dict(image=image, bboxes=bboxes, dst=dst, **kwargs)
+        ret = dict(
+            image=image,
+            bboxes=bboxes,
+            dst=self.mid_dst if hasattr(self, 'mid_dst') and self.mid_dst else dst,
+            **kwargs
+        )
         ret.update(self.resize(**ret))
+        ret.update(dst=dst)
         ret.update(self.crop(**ret))
 
         return ret
@@ -256,9 +263,10 @@ class LetterBox(Complex):
 class RuderLetterBox(Complex):
     """proportion resize, center crop without pad"""
 
-    def __init__(self, interpolation=0, max_ratio=None, **ig_kwargs):
+    def __init__(self, interpolation=0, max_ratio=None, mid_dst=None, **ignore_kwargs):
         self.resize = Proportion(choice_type=SHORTEST, interpolation=interpolation, max_ratio=max_ratio)  # choice the short scale factor
         self.crop = crop.Center(is_pad=False)
+        self.mid_dst = mid_dst
 
 
 class Jitter(Complex):

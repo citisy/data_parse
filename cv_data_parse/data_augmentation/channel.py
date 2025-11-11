@@ -116,7 +116,7 @@ class Keep3Channels:
     def apply_image(self, image, *args):
         c = image.shape[-1]
         if c == 1:
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         elif c == 3:
             pass
         elif c == 4:
