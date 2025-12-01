@@ -1073,6 +1073,9 @@ class Qwen2VLTokenizer(Qwen2Tokenizer):
         image_pixel_values = []
         image_grid_thw = []
 
+        video_pixel_values = []
+        video_grid_thw = []
+
         for d in dialog:
             content = d['content']
             role = d['role']
@@ -1096,25 +1099,43 @@ class Qwen2VLTokenizer(Qwen2Tokenizer):
                         image_count += 1
 
                     elif content_['type'] == 'video' or 'video' in content_:
-                        raise NotImplementedError
-                        # if add_vision_id:
-                        #     content += f'Video {video_count}'
-                        #
-                        # grid_thw = video_grid_thw[video_count]
-                        # l = grid_thw[0] * grid_thw[1] * grid_thw[2] // merge_length
-                        # content += self.chat_template['vision'].format(vision=self.video_pad_token * l)
-                        # video_count += 1
+                        if add_vision_id:
+                            content += f'Video {video_count}'
+
+                        if 'video_url' in content_:
+                            raise NotImplementedError
+
+                        l = 0
+                        tmp_grid_thw = []
+                        for image in content_['video']:
+                            pixel_value, grid_thw = self.encode_image(image)
+                            video_pixel_values.append(pixel_value)
+                            tmp_grid_thw.append(grid_thw)
+
+                            l += grid_thw[0] * grid_thw[1] * grid_thw[2] // merge_length
+
+                        video_grid_thw.append([len(tmp_grid_thw), *tmp_grid_thw[0][1:]])
+                        content += self.chat_template['vision'].format(vision=self.video_pad_token * l)
+                        video_count += 1
 
                     elif 'text' in content_:
                         content += content_['text']
 
             segment.append(self.chat_template['content'].format(content=content, role=role))
 
+        if image_pixel_values:
+            image_pixel_values = [np.concatenate(image_pixel_values, axis=0)]
+
+        if video_pixel_values:
+            video_pixel_values = [np.concatenate(video_pixel_values, axis=0)]
+
         segment.append('<|im_start|>assistant\n')
         return dict(
             segment=segment,
             image_pixel_values=image_pixel_values,
-            image_grid_thw=image_grid_thw
+            image_grid_thw=image_grid_thw,
+            video_pixel_values=video_pixel_values,
+            video_grid_thw=video_grid_thw
         )
 
     def encode_image(self, image):
