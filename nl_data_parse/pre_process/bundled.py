@@ -288,14 +288,17 @@ class GPT2Tokenizer:
             self.init()
         return vocab_size
 
-    def encode_segments(self, segments, **align_kwargs):
+    def encode_segments(self, segments: List[List[str]], **align_kwargs) -> dict:
         segments_ids = self.numerizer.encode(segments)
 
+        valid_segment_tags = [[True] * len(seg) for seg in segments_ids]
         seq_lens = [len(t) for t in segments_ids]
         segments_ids = snack.align(segments_ids, max_seq_len=self.max_seq_len, pad_obj=self.pad_id, **align_kwargs)
+        valid_segment_tags = snack.align(valid_segment_tags, max_seq_len=self.max_seq_len, pad_obj=False, **align_kwargs)
 
         return dict(
             segments_ids=segments_ids,
+            valid_segment_tags=valid_segment_tags,
             seq_lens=seq_lens
         )
 
@@ -927,7 +930,14 @@ class Qwen2Tokenizer(GPT2Tokenizer):
         ```
         """
         ret = self.dialog_to_segment(dialog, **kwargs)
-        ret.update(self.encode_segment(ret.pop('segment')))
+        _ret = self.encode_segment(ret.pop('segment'), pad_type=snack.DO_NOT_PAD)
+        _ret = dict(
+            segment_ids=[_id for ids in _ret['segment_ids'] for _id in ids],
+            valid_segment_tags=[_tag for tags in _ret['valid_segment_tags'] for _tag in tags],
+            seq_lens=sum(_ret['seq_lens']),
+            per_seq_lens=_ret['seq_lens']
+        )
+        ret.update(_ret)
         return ret
 
     def dialog_to_segment(self, dialog: List[Dict], **kwargs) -> dict:
@@ -938,29 +948,27 @@ class Qwen2Tokenizer(GPT2Tokenizer):
             }] + dialog
 
         segment = []
+        role = 'system'
         for d in dialog:
             content = d['content']
             role = d['role']
             segment.append(self.chat_template['content'].format(content=content, role=role))
 
-        segment.append('<|im_start|>assistant\n')
+        if role != "assistant":
+            segment.append('<|im_start|>assistant\n')
 
         return dict(
             segment=segment,
         )
 
-    def encode_segment(self, segment: List[str], **kwargs):
+    def encode_segment(self, segment: List[str], pad_type=snack.AUTO, **kwargs):
         segments = self.spliter.from_paragraphs(segment)
-        kwargs.update(pad_type=snack.DO_NOT_PAD)
-        ret = self.encode_segments(segments, **kwargs)
-        ret = dict(
-            segments_ids=[[_id for ids in ret['segments_ids'] for _id in ids]],
-            seq_lens=[sum(ret['seq_lens'])],
-            per_seq_lens=[ret['seq_lens']]
-        )
+        ret = self.encode_segments(segments, pad_type=snack.DO_NOT_PAD, **kwargs)
+        ret['segment_ids'] = snack.align(ret.pop('segments_ids'), max_seq_len=self.max_seq_len, pad_obj=self.pad_id, pad_type=pad_type)
+        ret['valid_segment_tags'] = snack.align(ret['valid_segment_tags'], max_seq_len=self.max_seq_len, pad_obj=False, pad_type=pad_type)
         return ret
 
-    def encode_paragraphs(self, paragraphs, **kwargs):
+    def encode_paragraphs(self, paragraphs: List[str], **kwargs):
         return self.encode_segment(paragraphs, **kwargs)
 
 
