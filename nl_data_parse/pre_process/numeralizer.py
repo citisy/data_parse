@@ -117,7 +117,7 @@ class BytePairEncode:
         self.byte_pairs = byte_pairs
         if not isinstance(self.byte_pairs, dict):
             # id: (char1, char2)
-            self.byte_pairs = {tuple(c.split()): i for i, c in enumerate(byte_pairs)}
+            self.byte_pairs = {tuple(c.split() if isinstance(c, str) else c): i for i, c in enumerate(byte_pairs)}
 
         self.word_dict = word_dict
         self.word_inv_dict = word_inv_dict or {v: k for k, v in word_dict.items()}

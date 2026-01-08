@@ -18,7 +18,7 @@ def greedy_search(x, seq_lens, score_fn, **score_fn_kwargs):
     pass
 
 
-def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, start_pos=0, penalty=1.1, **score_fn_kwargs):
+def beam_search(x, seq_lens, score_fn, eos_ids=(), pad_id=0, max_gen_len=100, top_k=1, start_pos=0, penalty=1.1, **score_fn_kwargs):
     assert seq_lens is not None
 
     batch_size = len(x)
@@ -35,13 +35,13 @@ def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, sta
             **score_fn_kwargs
         )
 
-        x = torch.cat([x, torch.zeros((batch_size, 1)).to(x)], dim=-1)
+        x = torch.cat([x, torch.full((batch_size, max(cur_pos - x.shape[-1] + 1, 0)), pad_id).to(x)], dim=-1)
 
         for batch in range(batch_size):
             if eos_flag[batch]:
                 continue
 
-            if x[batch][cur_pos] != 0:
+            if x[batch][cur_pos] != pad_id:
                 continue
 
             preds = logits[batch, -1]
@@ -52,7 +52,7 @@ def beam_search(x, seq_lens, score_fn, eos_ids=(), max_gen_len=100, top_k=1, sta
             arg = torch.argsort(preds, descending=True)
             keep = arg[:top_k]
             keep_preds = preds[keep]
-            keep_preds = keep_preds / (keep_preds.sum() + 1e-8) + 1e-8    # avoid underflow
+            keep_preds = keep_preds / (keep_preds.sum() + 1e-8) + 1e-8  # avoid underflow
 
             # random sampling
             next_id = keep[keep_preds.multinomial(1)[0]]

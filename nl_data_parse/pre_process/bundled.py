@@ -254,18 +254,24 @@ class GPT2Tokenizer:
         self.__dict__.update({f'{k}_id': v for k, v in self.sp_id_dict.items()})
 
     @classmethod
-    def from_pretrained(cls, vocab_fn, encoder_fn, **kwargs):
+    def from_pretrained(cls, vocab_fn=None, encoder_fn=None, tokenizer_fn=None, **kwargs):
         """
 
         Args:
             vocab_fn: 'xxx/vocab.json'
             encoder_fn: 'xxx/merges.txt'
+            tokenizer_fn: 'xxx/tokenizer.json'
             **kwargs:
 
         """
-        word_dict = os_lib.loader.load_json(vocab_fn)
-        byte_pairs = os_lib.loader.load_txt(encoder_fn)
-        byte_pairs = byte_pairs[1:]
+        if tokenizer_fn:
+            tokenizer_dict = os_lib.loader.load_json(tokenizer_fn)
+            word_dict = tokenizer_dict['model']['vocab']
+            byte_pairs = tokenizer_dict['model']['merges']
+        else:
+            word_dict = os_lib.loader.load_json(vocab_fn)
+            byte_pairs = os_lib.loader.load_txt(encoder_fn)
+            byte_pairs = byte_pairs[1:]
         return cls(byte_pairs, word_dict, **kwargs)
 
     def update_sp_token(self, sp_token_dict, sp_id_dict={}):
@@ -897,15 +903,15 @@ class Qwen2Tokenizer(GPT2Tokenizer):
     sp_token_dict = dict(
         unk="<|endoftext|>",
         pad="<|endoftext|>",
-        im_start='<|im_start|>',
-        im_end='<|im_end|>',
+        bos='<|im_start|>',
+        eos='<|im_end|>',
     )
 
     sp_id_dict = dict(
         unk=151643,
         pad=151643,
-        im_start=151644,
-        im_end=151645,
+        bos=151644,
+        eos=151645,
     )
 
     regex_str = "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
@@ -916,7 +922,7 @@ class Qwen2Tokenizer(GPT2Tokenizer):
     def chat_template(self):
         return dict(
             # <|im_start|>{role}\n{content}<|im_end|>\n
-            content=f'{self.im_start_token}{{role}}\n{{content}}{self.im_end_token}\n',
+            content=f'{self.bos_token}{{role}}\n{{content}}{self.eos_token}\n',
         )
 
     def encode_dialog(self, dialog: List[Dict], **kwargs) -> dict:
@@ -971,14 +977,18 @@ class Qwen2Tokenizer(GPT2Tokenizer):
     def encode_paragraphs(self, paragraphs: List[str], **kwargs):
         return self.encode_segment(paragraphs, **kwargs)
 
+    def encode_paragraph(self, paragraph: str, **kwargs):
+        ret = self.encode_paragraphs([paragraph], **kwargs)
+        ret = {k: v[0] for k, v in ret.items()}
+        return ret
+
 
 class Qwen2VLTokenizer(Qwen2Tokenizer):
     sp_token_dict = dict(
         unk="<|endoftext|>",
-        eos="<|im_end|>",
         pad="<|endoftext|>",
-        im_start='<|im_start|>',
-        im_end='<|im_end|>',
+        bos='<|im_start|>',
+        eos='<|im_end|>',
         object_ref_start='<|object_ref_start|>',
         object_ref_end='<|object_ref_end|>',
         box_start='<|box_start|>',
@@ -994,10 +1004,9 @@ class Qwen2VLTokenizer(Qwen2Tokenizer):
 
     sp_id_dict = dict(
         unk=151643,
-        eos=151645,
         pad=151643,
-        im_start=151644,
-        im_end=151645,
+        bos=151644,
+        eos=151645,
         object_ref_start=151646,
         object_ref_end=151647,
         box_start=151648,
@@ -1015,7 +1024,7 @@ class Qwen2VLTokenizer(Qwen2Tokenizer):
     def chat_template(self):
         return dict(
             # <|im_start|>{role}\n{content}<|im_end|>
-            content=f'{self.im_start_token}{{role}}\n{{content}}{self.im_end_token}',
+            content=f'{self.bos_token}{{role}}\n{{content}}{self.eos_token}',
             # <|vision_start|>{vision}<|vision_end|>
             vision=f'{self.vision_start_token}{{vision}}{self.vision_end_token}',
         )
