@@ -2,6 +2,7 @@ import pickle
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
+from typing import overload
 
 import numpy as np
 from tqdm import tqdm
@@ -29,6 +30,7 @@ class DataRegister(Enum):
     BASE64 = 3
     ZIP = 4
     URL = 5
+    BYTES = 6
 
 
 class DataLoader:
@@ -179,14 +181,25 @@ class DataLoader:
 
 
 class DataSaver:
+    default_set_type = [DataRegister.TRAIN, DataRegister.TEST]
+
     def __init__(self, data_dir, verbose=True, stdout_method=print):
         self.data_dir = data_dir
-        self.default_set_type = [DataRegister.TRAIN, DataRegister.TEST]
         self.verbose = verbose
         self.stdout_method = stdout_method if verbose else os_lib.FakeIo()
 
     def __call__(self, *args, **kwargs):
         return self.save(*args, **kwargs)
+
+    @overload
+    def save(
+            self,
+            data,
+            set_type=None,
+            max_size=float('inf'),
+            **load_kwargs
+    ):
+        pass
 
     def save(self, data, set_type=DataRegister.FULL, **save_kwargs):
         """
@@ -247,7 +260,7 @@ class DataSaver:
             self.parse_ret(ret, **get_kwargs)
             i += 1
 
-    def parse_ret(self, ret, image_type=DataRegister.PATH, **get_kwargs):
+    def parse_ret(self, ret, **get_kwargs):
         raise NotImplementedError
 
     def save_cache(self, data, save_name):
@@ -357,3 +370,30 @@ class DatasetGenerator:
 
     def filter_func(self, x):
         return True
+
+
+class DataAug:
+    def __init__(self, **kwargs):
+        self.name = __name__.split('.')[-1] + '.' + self.__class__.__name__
+        self.__dict__.update(kwargs)
+
+    def __call__(self, *args, **kwargs):
+        """
+        add_params = self.get_add_params()
+
+        return {
+            '*': self.apply_*(*, add_params),
+            **add_params
+        }
+        """
+        raise NotImplementedError
+
+    def get_add_params(self, **kwargs):
+        return {self.name: dict(**kwargs)}
+
+    def parse_add_params(self, ret):
+        return ret[self.name]
+
+    @staticmethod
+    def restore(ret):
+        raise NotImplementedError

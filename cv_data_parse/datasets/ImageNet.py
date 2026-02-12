@@ -6,6 +6,7 @@ from .base import DataRegister, DataLoader, DataSaver, get_image
 
 class Loader(DataLoader):
     """https://www.image-net.org/
+    https://image-net.org/challenges/LSVRC/2012/2012-downloads.php
 
     Data structure:
         .

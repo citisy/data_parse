@@ -12,7 +12,9 @@ class Loader(DataLoader):
     Data structure:
         .
         ├── images
-        └── [set_task].json
+        │   └── [set_task]
+        │       └── xxx.png
+        └── [set_task].[set_type].json
 
     """
 
@@ -20,8 +22,8 @@ class Loader(DataLoader):
     classes = []
     default_set_type = [DataRegister.MIX]
 
-    def _call(self, set_task='label_studio', **kwargs):
-        with open(f'{self.data_dir}/{set_task}.json', 'r', encoding='utf8') as f:
+    def _call(self, set_type=None, set_task='label_studio', **kwargs):
+        with open(f'{self.data_dir}/{set_task}.{set_type.value}.json', 'r', encoding='utf8') as f:
             gen_func = json.load(f)
         return self.gen_data(gen_func, set_task=set_task, **kwargs)
 
@@ -33,7 +35,8 @@ class Loader(DataLoader):
             sub_id, _id = image_name.split('-', 1)
         else:
             sub_id, _id = '', image_name
-        image_path = f'{self.data_dir}/images/{set_task}/{_id}'
+        if not os.path.exists(image_path):
+            image_path = f'{self.data_dir}/images/{set_task}/{_id}'
         image_path = os.path.abspath(image_path)
         image = get_image(image_path, image_type)
 
@@ -41,7 +44,7 @@ class Loader(DataLoader):
         for a in js[task]:
             for r in a['result']:
                 v = r['value']
-                if v['type'] == 'choices':
+                if r['type'] == 'choices':
                     for c in v['choices']:
                         classes.append(self.classes.index(c))
 
@@ -55,11 +58,19 @@ class Loader(DataLoader):
 
 
 class Saver(DataSaver):
-    def _call(self, iter_data, image_type=DataRegister.PATH, set_task='label_studio', task='annotations', cls_alias=None, is_save_image=True, **kwargs):
+    default_set_type = [DataRegister.MIX]
+
+    def _call(
+            self,
+            iter_data, set_type=None, image_type=DataRegister.PATH, set_task='label_studio',
+            task='annotations', cls_alias=None, is_save_image=True, is_multi_label=False,
+            **kwargs
+    ):
+        assert task in ['annotations', 'predictions']
         rets = []
         for dic in iter_data:
             _id = dic['_id']
-            sub_id = dic['sub_id']
+            sub_id = dic.get('sub_id')
             image_root = dic['image_root']
             image = dic['image']
             if is_save_image:
@@ -71,15 +82,25 @@ class Saver(DataSaver):
                 classes = [cls_alias[i] for i in classes]
 
             result = []
-            for cls in classes:
+            if is_multi_label:
                 result.append(dict(
                     value=dict(
-                        choices=[cls],
+                        choices=classes,
                     ),
                     type='choices',
                     from_name="category",
                     to_name="image",
                 ))
+            else:
+                for cls in classes:
+                    result.append(dict(
+                        value=dict(
+                            choices=[cls],
+                        ),
+                        type='choices',
+                        from_name="category",
+                        to_name="image",
+                    ))
 
             if sub_id:
                 image = f'{image_root}/{sub_id}-{_id}'
@@ -92,15 +113,16 @@ class Saver(DataSaver):
                 )]
             })
 
-        os_lib.saver.save_json(rets, f'{self.data_dir}/{set_task}.json')
+        os_lib.saver.save_json(rets, f'{self.data_dir}/{set_task}.{set_type.value}.json')
 
 
-class MyGenerator(DatasetGenerator):
+class Generator(DatasetGenerator):
     def gen_sets(self, list_iter_data, *args, **kwargs):
         _iter_data = []
         for iter_data in list_iter_data:
             for ret in iter_data:
-                ret.pop('image')
+                if 'image' in ret:
+                    assert isinstance(ret['image'], str)
                 _iter_data.append(ret)
         return super().gen_sets(_iter_data, *args, **kwargs)
 

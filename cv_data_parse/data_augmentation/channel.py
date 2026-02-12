@@ -36,7 +36,8 @@ class CHW2HWC:
         return image
 
     def restore(self, ret):
-        ret['image'] = HWC2CHW.apply_image(ret['image'])
+        if 'image' in ret:
+            ret['image'] = HWC2CHW().apply_image(ret['image'])
         return ret
 
 
@@ -60,6 +61,11 @@ class BGR2RGB:
         elif self.axis == -1:
             image[..., :] = image[..., ::-1]
         return image
+
+    def restore(self, ret):
+        if 'image' in ret:
+            ret['image'] = self.apply_image(ret['image'])
+        return ret
 
 
 class RGB2BGR(BGR2RGB):

@@ -5,7 +5,7 @@ import shutil
 import numpy as np
 from tqdm import tqdm
 from utils import os_lib, converter, visualize, cv_utils
-from typing import List
+from typing import List, overload
 from numbers import Number
 from ... import DataRegister, DataLoader, DataSaver, DatasetGenerator
 
@@ -20,13 +20,15 @@ def get_image(obj: str, image_type):
     elif image_type == DataRegister.NPY:
         image = np.load(obj)
     elif image_type == DataRegister.BASE64:
-        image = cv2.imread(obj)
-        image = converter.DataConvert.image_to_base64(image)
+        image = os_lib.loader.load_bytes(obj)
+        image = converter.DataConvert.bytes_to_image(image)
     elif image_type == DataRegister.URL:
         import requests
         r = requests.get(obj)
         image = r.content
         image = converter.DataConvert.bytes_to_image(image)
+    elif image_type == DataRegister.BYTES:
+        image = os_lib.loader.load_bytes(obj)
     else:
         raise ValueError(f'Unknown input {image_type = }')
 
@@ -95,6 +97,17 @@ class DataLoader(DataLoader):
     default_image_type = DataRegister.PATH
     image_suffix = '.png'
     image_suffixes = os_lib.suffixes_dict['img']
+
+    @overload
+    def load(
+            self,
+            set_type=None,
+            generator=True,
+            image_type=None,
+            max_size=None,
+            **load_kwargs
+    ):
+        pass
 
     def load(self, image_type=None, **load_kwargs):
         """
