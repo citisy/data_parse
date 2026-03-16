@@ -27,11 +27,11 @@ class Loader(DataLoader):
             gen_func = json.load(f)
         return self.gen_data(gen_func, set_task=set_task, **kwargs)
 
-    def get_ret(self, js, image_type=DataRegister.PATH, set_task='label_studio', task='annotations', **kwargs) -> dict:
+    def get_ret(self, js, image_type=DataRegister.PATH, set_task='label_studio', task='annotations', split_sub_id=True, **kwargs) -> dict:
         image_path = Path(js['data']['image'])
         image_root = str(image_path.parent)
         image_name = image_path.name
-        if '-' in image_name:
+        if split_sub_id:
             sub_id, _id = image_name.split('-', 1)
         else:
             sub_id, _id = '', image_name
@@ -42,14 +42,19 @@ class Loader(DataLoader):
         bboxes = []
         segmentations = []
         classes = []
+        size = None
         for a in js[task]:
             for r in a['result']:
                 v = r['value']
-                if v['type'] == 'rectanglelabels':
-                    bboxes.append([v['x'], v['y'], v['width'], v['height']])
-                    classes.append(self.classes.index(v['rectanglelabels'][0]))
-                    size = (r['original_height'], r['original_width'], 3)
-                elif v['type'] == 'polygonlabels':
+
+                _type = v.get('type', 'rectanglelabels')
+                if _type == 'rectanglelabels':
+                    rectanglelabels = v.get('rectanglelabels', [])
+                    for c in rectanglelabels:
+                        bboxes.append([v['x'], v['y'], v['width'], v['height']])
+                        classes.append(self.classes.index(c))
+                        size = (r['original_height'], r['original_width'], 3)
+                elif _type == 'polygonlabels':
                     points = r['value']['points']
                     points = np.array(points)
                     points /= 100
@@ -65,8 +70,9 @@ class Loader(DataLoader):
                     size = (r['original_height'], r['original_width'], 3)
 
         bboxes = np.array(bboxes)
-        bboxes /= 100
-        bboxes = cv_utils.CoordinateConvert.top_xywh2top_xyxy(bboxes, wh=(size[1], size[0]), blow_up=True)
+        if len(bboxes):
+            bboxes /= 100
+            bboxes = cv_utils.CoordinateConvert.top_xywh2top_xyxy(bboxes, wh=(size[1], size[0]), blow_up=True)
         classes = np.array(classes)
 
         return dict(

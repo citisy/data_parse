@@ -37,8 +37,11 @@ class Loader(DataLoader):
         image = get_image(image_path, image_type)
 
         text_path = image_path.replace(task, text_task).replace(Path(image_path).suffix, '.txt')
-        with open(text_path, 'r', encoding='utf8') as f:
-            text = f.read()
+        if os.path.exists(text_path):
+            with open(text_path, 'r', encoding='utf8') as f:
+                text = f.read()
+        else:
+            text = ''
 
         return dict(
             _id=fp.name,

@@ -171,7 +171,7 @@ class DataVisualizer:
         self.save_dir = save_dir
         saver_kwargs.setdefault('verbose', not pbar)
         self.saver = os_lib.Saver(**saver_kwargs)
-        self.pbar = pbar and not saver_kwargs['verbose']  # do not use pbar directly, 'cause they clash
+        self.pbar_log = pbar and not saver_kwargs['verbose']  # do not use pbar directly, 'cause they clash
         os_lib.mk_dir(save_dir)
 
     def __call__(self, *iter_data, max_vis_num=None, return_image=False, **visual_kwargs):
@@ -196,7 +196,7 @@ class DataVisualizer:
 
         """
         pbar = zip(*iter_data)
-        if self.pbar:
+        if self.pbar_log:
             pbar = tqdm(pbar, desc='visual')
 
         vis_num = 0
@@ -222,7 +222,7 @@ class DataVisualizer:
 
         return cache_image
 
-    def visual_one_image(self, r, **visual_kwargs):
+    def visual_one_image(self, r, cls_alias=None, **ignore_kwargs):
         image = r['image']
 
         if 'bboxes' in r and r['bboxes'] is not None:
@@ -236,8 +236,7 @@ class DataVisualizer:
                 else:
                     colors = [visualize.get_color_array(int(cls)) for cls in classes]
 
-                if 'cls_alias' in visual_kwargs and visual_kwargs['cls_alias']:
-                    cls_alias = visual_kwargs['cls_alias']
+                if cls_alias:
                     classes = [cls_alias[_] for _ in classes]
 
                 if 'confs' in r:
