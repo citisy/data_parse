@@ -13,13 +13,14 @@ class Loader(DataLoader):
 
     Data structure:
         .
-        ├── images
-        │   └── [set_task]
+        ├── [image_dir]
+        │   └── [image_task]
         └── [set_task].json
 
     """
 
     image_suffix = '.png'
+    image_dir = 'images'
     classes = []
 
     def _call(self, set_task='label_studio', **kwargs):
@@ -27,7 +28,7 @@ class Loader(DataLoader):
             gen_func = json.load(f)
         return self.gen_data(gen_func, set_task=set_task, **kwargs)
 
-    def get_ret(self, js, image_type=DataRegister.PATH, set_task='label_studio', task='annotations', split_sub_id=True, **kwargs) -> dict:
+    def get_ret(self, js, image_type=DataRegister.PATH, task='annotations', image_task='', split_sub_id=True, **kwargs) -> dict:
         image_path = Path(js['data']['image'])
         image_root = str(image_path.parent)
         image_name = image_path.name
@@ -35,7 +36,7 @@ class Loader(DataLoader):
             sub_id, _id = image_name.split('-', 1)
         else:
             sub_id, _id = '', image_name
-        image_path = f'{self.data_dir}/images/{set_task}/{_id}'
+        image_path = f'{self.data_dir}/{self.image_dir}/{image_task}/{_id}'
         image_path = os.path.abspath(image_path)
         image = get_image(image_path, image_type)
 

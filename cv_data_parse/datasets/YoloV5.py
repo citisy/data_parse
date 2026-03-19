@@ -191,7 +191,7 @@ class LoaderFull(DataLoader):
         ret = dict(
             _id=img_fp.name,
             task=task,
-            classes=labels[:, 0],
+            classes=(labels[:, 0]).astype(int),
             bboxes=labels[:, 1:5],
         )
 
@@ -213,7 +213,7 @@ class Saver(DataSaver):
         │   └── [task]
         ├── labels
         │   └── [task]
-        └── image_sets
+        └── image_sets  # not necessary, set `set_type=DataRegister.MIX` to ignore save to image_sets, and then, use `Generator` to split the sets.
             └── [set_task]
                   ├── train.txt  # per image file path per line
                   ├── test.txt   # would like to be empty or same to val.txt
@@ -272,7 +272,7 @@ class Saver(DataSaver):
         self.gen_data(iter_data, f=f, **gen_kwargs)
         f.close()
 
-    def parse_ret(self, ret, image_type=DataRegister.PATH, f=None, task='', **get_kwargs):
+    def parse_ret(self, ret, image_type=DataRegister.PATH, f=None, task='', is_save_image=True, **get_kwargs):
         image = ret['image']
         bboxes = np.array(ret['bboxes'])
         classes = np.array(ret['classes'])
@@ -280,7 +280,8 @@ class Saver(DataSaver):
 
         image_path = f'{self.data_dir}/images/{task}/{_id}'
         label_path = f'{self.data_dir}/labels/{task}/{Path(_id).stem}.txt'
-        save_image(image, image_path, image_type)
+        if is_save_image:
+            save_image(image, image_path, image_type)
         label = np.c_[classes, bboxes]
 
         np.savetxt(label_path, label, fmt='%.6f')
@@ -365,10 +366,11 @@ class Generator(DatasetGenerator):
                     data_dir=data_dir,
                     image_dir=f'{data_dir}/images/1',
                 )
-                gen = Generator(
-                    data_dir=data_dir,
-                    label_dir=f'{data_dir}/labels/1',
-                )
+                # use label to split only
+                # gen = Generator(
+                #     data_dir=data_dir,
+                #     label_dir=f'{data_dir}/labels/1',
+                # )
                 gen.gen_sets(set_task='1')
 
                 # multi data dir
