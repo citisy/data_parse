@@ -53,6 +53,14 @@ class Apply:
             image = func.apply_image(image, ret)
         return image
 
+    def apply(self, *args, func_name, **kwargs):
+        for func in self.funcs:
+            method = getattr(func, func_name, None)
+            if method:
+                args = method(*args, **kwargs)
+
+        return args
+
     def restore(self, ret):
         if self.full_result:
             _ret = []
@@ -131,6 +139,16 @@ class RandomApply:
         for idx in apply_func_idx:
             image = self.funcs[idx].apply_image(image, ret)
         return image
+
+    def apply(self, *args, ret, func_name, **kwargs):
+        apply_func_idx = ret['RandomApply']
+        for idx in apply_func_idx:
+            func = self.funcs[idx]
+            method = getattr(func, func_name, None)
+            if method:
+                args = method(*args, ret, **kwargs)
+
+        return args
 
     def restore(self, ret):
         if self.full_result:

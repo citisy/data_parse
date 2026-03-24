@@ -243,6 +243,11 @@ class Complex:
         image = self.crop.apply_image(image, ret)
         return image
 
+    def apply_bboxes_classes(self, bboxes, classes, ret):
+        bboxes = self.resize.apply_bboxes(bboxes, ret)
+        bboxes, classes = self.crop.apply_bboxes_classes(bboxes, classes, ret)
+        return bboxes, classes
+
     def restore(self, ret):
         ret = self.crop.restore(ret)
         ret = self.resize.restore(ret)
