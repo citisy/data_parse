@@ -181,8 +181,9 @@ class Rectangle:
     def apply_bboxes(self, bboxes, ret):
         if bboxes is not None:
             pw, ph = self.parse_add_params(ret)
-            bboxes = np.array(bboxes, dtype=float) * np.array([pw, ph, pw, ph])
-            bboxes = bboxes.astype(int)
+            if bboxes is not None and len(bboxes):
+                bboxes = np.array(bboxes, dtype=float) * np.array([pw, ph, pw, ph])
+                bboxes = bboxes.astype(int)
 
         return bboxes
 
@@ -193,7 +194,7 @@ class Rectangle:
             image = cv2.resize(image, None, fx=1 / pw, fy=1 / ph, interpolation=self.interpolation)
             ret['image'] = image
 
-        if 'bboxes' in ret and ret['bboxes'] is not None:
+        if 'bboxes' in ret and ret['bboxes'] is not None and len(ret['bboxes']):
             bboxes = ret['bboxes']
             bboxes = np.array(bboxes, dtype=float) / np.array([pw, ph, pw, ph])
             bboxes = bboxes.astype(int)

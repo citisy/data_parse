@@ -1,4 +1,5 @@
 import os
+import warnings
 from pathlib import Path
 from typing import Iterable
 
@@ -165,6 +166,17 @@ class Loader(DataLoader):
             image_path=image_path,
             label_path=label_path
         )
+
+    def on_end_convert(self, ret):
+        # if isinstance(ret['image'], np.ndarray):
+        #     h, w, c = ret['image'].shape
+        #     ret['bboxes'] = cv_utils.CoordinateConvert.mid_xywh2top_xyxy(ret['bboxes'], wh=(w, h), blow_up=True)
+        warnings.warn(
+            'Official bboxes of yolov5 is norm xywh, but all bboxes in the project used in ref xyxy. '
+            'Make sure, if necessary, implement the func to conver norm xywh to ref xyxy.'
+            'If use bboxes of ref xyxy, ignore this warning!'
+        )
+        return ret
 
 
 class LoaderFull(DataLoader):
@@ -403,7 +415,8 @@ class Generator(DatasetGenerator):
                 if id_distinguish:
                     idx += [i.stem for i in tmp]
 
-                tmp = [os.path.abspath(str(i).replace(i.suffix, self.image_suffixes[0])) for i in tmp]
+                # todo, if image is not end with image_suffixes[0]?
+                tmp = [os.path.abspath(str(i).replace(i.suffix, self.image_suffixes[0]).replace('labels', 'images')) for i in tmp]
                 data += tmp
 
         else:
