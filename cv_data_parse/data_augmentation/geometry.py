@@ -46,12 +46,14 @@ class HFlip:
             bboxes[:, (0, 2)] = w - bboxes[:, (2, 0)]
         return bboxes
 
-    @staticmethod
-    def restore(ret):
-        h, w = ret['image'].shape[:2]
-        bboxes = ret['bboxes']
-        bboxes[:, (0, 2)] = w - bboxes[:, (2, 0)]
-        ret['bboxes'] = bboxes
+    def restore(self, ret):
+        if 'image' in ret:
+            image = ret['image']
+            ret['image'] = self.apply_image(image)
+
+            if 'bboxes' in ret:
+                w = image.shape[1]
+                ret['bboxes'] = self.apply_bboxes(ret['bboxes'], w)
 
         return ret
 
@@ -81,12 +83,14 @@ class VFlip:
 
         return bboxes
 
-    @staticmethod
-    def restore(ret):
-        h, w = ret['image'].shape[:2]
-        bboxes = ret['bboxes']
-        bboxes[:, (1, 3)] = h - bboxes[:, (3, 1)]
-        ret['bboxes'] = bboxes
+    def restore(self, ret):
+        if 'image' in ret:
+            image = ret['image']
+            ret['image'] = self.apply_image(image)
+
+            if 'bboxes' in ret:
+                w = image.shape[1]
+                ret['bboxes'] = self.apply_bboxes(ret['bboxes'], w)
 
         return ret
 

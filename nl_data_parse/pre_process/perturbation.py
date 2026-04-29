@@ -6,7 +6,7 @@ from utils import math_utils
 
 class JitterBase:
     def __init__(
-            self, word_dict, sp_id_dict, sp_token_dict,
+            self, word_dict, sp_id_dict=dict(), sp_token_dict=dict(),
             include_tokens=None, exclude_tokens=(),
             prob=0.15, **kwargs
     ):
@@ -14,9 +14,9 @@ class JitterBase:
 
         self.sp_token_dict = sp_token_dict
         self.sp_id_dict = sp_id_dict
-        self.mask_token = self.sp_token_dict['mask']
-        self.unk_id = self.sp_id_dict['unk']
-        self.skip_id = self.sp_id_dict['skip']
+        self.mask_token = self.sp_token_dict.get('mask', '[MASK]')
+        self.unk_id = self.sp_id_dict.get('unk', -100)
+        self.skip_id = self.sp_id_dict.get('skip', -100)
 
         self.exclude_tokens = set(exclude_tokens) | set(sp_token_dict.values())
         self.include_tokens = set(include_tokens or word_dict.keys())
@@ -66,9 +66,9 @@ class TokenJitter(JitterBase):
     """
     Usage:
         rand = perturbation.TokenJitter([
-            perturbation.RandomReplace(word_dict, skip_id),
-            perturbation.RandomAppend(word_dict, skip_id),
-            perturbation.RandomDelete(word_dict, skip_id),
+            perturbation.RandomReplace(word_dict, sp_id_dict, sp_token_dict),
+            perturbation.RandomAppend(word_dict, sp_id_dict, sp_token_dict),
+            perturbation.RandomDelete(word_dict, sp_id_dict, sp_token_dict),
         ])
         segments = rand.from_segments(segments)
     """
@@ -101,11 +101,11 @@ class TokenJitter(JitterBase):
 class RandomMask(JitterBase):
     """
     ['hello', 'world', 'hello', 'python']
-    -> segment = ['hello', '[MASK]', 'hello', 'java']
+    -> segment = ['hello', '[MASK]', 'hello', '[MASK]']
     -> mask_tag = [-100, 1, -100, 2]
 
     -100 is skip_id, means the token in the position is not masked,
-    1 and 2 are ids of 'world' and 'python', means the token got masked
+    1 and 2 are tags of 'world' and 'python' before masked
     """
 
     mask_prob = 0.8
@@ -137,7 +137,7 @@ class RandomReplace(JitterBase):
     -> mask_tag = [-100, 1, -100, 2]
 
     -100 is skip_id, means the token in the position is not replaced,
-    1 and 2 are ids of 'world' and 'python', means the token got replaced
+    1 and 2 are tags of 'world' and 'python' before replaced
     """
 
     def segment_inplace(self, segment, mask_tag, i, shift, **kwargs):
@@ -178,18 +178,19 @@ class RandomAppend(JitterBase):
     """
     ['hello', 'hello']
     if keep_len = True:
-        -> segment = ['hello', 'hello']
-        -> mask_tag = [1, 2]
+        -> segment = ['hello', 'world', 'hello']
+        -> mask_tag = [1, -100]
 
-        -100 is skip_id, means the token in the position is not appended,
-        1 and 2 is tag of 'world' and 'python', means one token will be got appended after
+        -100 is skip_id, means the next token in the position is not appended,
+        1 is the tag of 'world' next 'hello' after appended
+        note, don't allowed to append more than one continuous tokens
 
     if keep_len = False:
         -> segment = ['hello', 'world', 'hello', 'python']
         -> mask_tag = [-100, 1, -100, 2]
 
         -100 is skip_id, means the token in the position is not appended,
-        1 and 2 is tag of 'world' and 'python', means the token is appended
+        1 and 2 are tags of 'world' and 'python' after appended
 
     """
     keep_len = True  # keep the length after same to before
@@ -254,14 +255,15 @@ class RandomDelete(JitterBase):
         -> mask_tag = [-100, 1, -100, 2]
 
         -100 is skip_id, means the token in the position is not deleted,
-        1 and 2 is tag of 'world' and 'python', means one token is deleted
+        1 and 2 are the tags of 'world' and 'python' before deleted
 
     if keep_len = False:
-        -> segment = ['hello', 'hello']
-        -> mask_tag = [1, 2]
+        -> segment = ['hello', 'world', 'hello']
+        -> mask_tag = [-100, -100, 2]
 
-        -100 is skip_id, means the token in the position is not deleted,
-        1 and 2 is tag of 'world' and 'python', means the token will be got deleted after
+        -100 is skip_id, means the next token is not deleted,
+        2 is the tag of 'python' next 'hello' before deleted
+        note, don't allowed to delete more than one continuous tokens
 
     """
     keep_len = True  # keep the length after same to before

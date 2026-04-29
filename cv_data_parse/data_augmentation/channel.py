@@ -46,8 +46,8 @@ class BGR2RGB:
     cv2 -> bgr
     PIL.Image -> rgb
     """
-    def __init__(self, axis=-1):
-        self.axis = axis
+    def __init__(self, channel_first=False):
+        self.channel_first = channel_first
 
     def __call__(self, image, **kwargs):
         return dict(
@@ -56,9 +56,9 @@ class BGR2RGB:
 
     def apply_image(self, image, *args):
         image = image.copy()
-        if self.axis == 0:
+        if self.channel_first:
             image = image[::-1]
-        elif self.axis == -1:
+        else:
             image[..., :] = image[..., ::-1]
         return image
 

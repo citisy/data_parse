@@ -73,7 +73,8 @@ class Apply:
 
         else:
             for func in self.funcs[::-1]:
-                ret = func.restore(ret)
+                if hasattr(func, 'restore'):
+                    ret = func.restore(ret)
 
         return ret
 

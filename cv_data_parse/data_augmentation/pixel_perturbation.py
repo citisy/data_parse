@@ -8,7 +8,13 @@ from . import RandomChoice
 
 
 class MinMax:
-    """[0, 255] to [0, 1]"""
+    """[min_in, max_in] to [min_out, max_out]"""
+
+    def __init__(self, min_in=0., max_in=255., min_out=0., max_out=1.):
+        self.min_in = min_in
+        self.max_in = max_in
+        self.min_out = min_out
+        self.max_out = max_out
 
     def __call__(self, image, **kwargs):
         return dict(
@@ -16,16 +22,17 @@ class MinMax:
         )
 
     def apply_image(self, image, *args):
-        return image / 255.
+        return (image - self.min_in) * (self.max_out - self.min_out) / (self.max_in - self.min_in) + self.min_out
 
     def restore(self, ret):
         if 'image' in ret:
-            ret['image'] = (ret['image'] * 255).astype(np.uint8)
+            ret['image'] = (ret['image'] - self.min_out) * (self.max_in - self.min_in) / (self.max_out - self.min_out) + self.min_in
         return ret
 
 
 class Clip:
     """all falls in [a_min, a_max]"""
+
     def __init__(self, a_min=0, a_max=255):
         self.a_min = a_min
         self.a_max = a_max
@@ -37,6 +44,19 @@ class Clip:
 
     def apply_image(self, image, *args):
         return np.clip(image, self.a_min, self.a_max)
+
+
+class ToImage:
+    def __call__(self, image, **kwargs):
+        return dict(
+            image=self.apply_image(image)
+        )
+
+    def apply_image(self, image, *args):
+        if image.min() > 0 and image.max() < 1:
+            image = MinMax(min_in=0, max_in=1, min_out=0, max_out=255).apply_image(image)
+            image = Clip().apply_image(image)
+        return image.astype(np.uint8)
 
 
 class GaussNoise:
@@ -131,14 +151,39 @@ class Normalize:
     See Also `torchvision.transforms.Normalize`
     """
 
-    def __init__(self, mean=None, std=None):
+    def __init__(self, mean=None, std=None, channel_first=False):
         self.name = __name__.split('.')[-1] + '.' + self.__class__.__name__
+
+        if channel_first and mean is not None and not isinstance(mean, numbers.Number):
+            mean = np.array(mean)
+            dims_to_append = 3 - mean.ndim
+            mean = mean[(...,) + (None,) * dims_to_append]
+
+        if channel_first and std is not None and not isinstance(std, numbers.Number):
+            std = np.array(std)
+            dims_to_append = 3 - std.ndim
+            std = std[(...,) + (None,) * dims_to_append]
+
         self.mean = mean
         self.std = std
+        self.channel_first = channel_first
 
     def get_params(self, image):
-        mean = self.mean if self.mean is not None else np.mean(image, axis=(0, 1))
-        std = self.std if self.std is not None else np.std(image, axis=(0, 1))
+        if self.mean is None:
+            if self.channel_first:
+                mean = np.mean(image, axis=(1, 2), keepdims=True)
+            else:
+                mean = np.mean(image, axis=(0, 1), keepdims=True)
+        else:
+            mean = self.mean
+
+        if self.std is None:
+            if self.channel_first:
+                std = np.std(image, axis=(1, 2), keepdims=True)
+            else:
+                std = np.std(image, axis=(0, 1), keepdims=True)
+        else:
+            std = self.std
 
         return mean, std
 
@@ -147,8 +192,11 @@ class Normalize:
         return {self.name: dict(mean=mean, std=std)}
 
     def parse_add_params(self, ret):
-        info = ret[self.name]
-        return info['mean'], info['std']
+        if self.name in ret:
+            info = ret[self.name]
+            return info['mean'], info['std']
+        else:
+            return self.mean, self.std
 
     def __call__(self, image, **kwargs):
         add_params = self.get_add_params(image)
@@ -810,4 +858,3 @@ class ShrinkMap:
                     cv2.fillPoly(mapping, [shrink.astype(np.int32)], 1)
 
         return mapping, mask
-
