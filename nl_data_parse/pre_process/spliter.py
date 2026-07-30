@@ -4,25 +4,25 @@ article (str):
     all lines fatten to a string
     e.g.: 'hello world! hello python!'
 paragraphs (List[str]):
-    all original lines, each itme in list is a str line
+    lines split from article
     e.g.: ['hello world!', 'hello python!']
 paragraph (str)
-    one paragraph can be an article
+    part of article, one line from paragraphs, or one paragraph can be seemed as an article
     e.g.: 'hello world!'
 chunked_paragraphs (List[str]):
-    each line has the same length as paragraphs as possibly, each itme in list is a str line
+    paragraphs after chunked with some rules, such as, each line from chunked_paragraphs would be had same length as possibly
     e.g.: ['hello world! hello python!']
 segments (List[List[str]]):
-    all lines after cut, each itme in list is a cut word list
+    all lines from paragraphs after cut
     e.g.: [['hello', 'world!'], ['hello', 'python!']]
 segment (List[str])
-    one segment can be a paragraphs
+    paragraph after cut, or one segment can be seemed as a paragraphs
     e.g.: ['hello', 'world!']
 word (str)
     items of segment
     e.g.: 'hello'
 chunked_segments (List[List[str]]):
-    each line has the same length as segments as possibly, each itme in list is a cut word list
+    segments after chunked with some rules, such as, each segment from chunked_segments would be had same length as possibly
     e.g.: [['hello', 'world!', 'hello', 'python!']]
 """
 import re

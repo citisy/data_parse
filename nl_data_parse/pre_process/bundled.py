@@ -967,6 +967,12 @@ class Qwen2Tokenizer(GPT2Tokenizer):
             segment=segment,
         )
 
+    def paragraph_to_dialog(self, paragraph: str) -> list:
+        """
+        'xxx' -> [{'role': 'user', 'content': 'xxx'}]
+        """
+        return [{'role': 'user', 'content': paragraph}]
+
     def encode_segment(self, segment: List[str], pad_type=snack.AUTO, **kwargs):
         segments = self.spliter.from_paragraphs(segment)
         ret = self.encode_segments(segments, pad_type=snack.DO_NOT_PAD, **kwargs)
