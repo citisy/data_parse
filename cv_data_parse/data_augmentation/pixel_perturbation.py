@@ -545,8 +545,15 @@ class Erase:
         self.name = __name__.split('.')[-1] + '.' + self.__class__.__name__
         self.scale = scale
         self.ratio = ratio
-        self.fill = fill if fill is not None else np.random.randint(100, 125, size=3)
+        self._fill = fill
         self.max_iter = max_iter
+
+    @property
+    def fill(self):
+        if self._fill is not None:
+            return self._fill
+        else:
+            return np.random.randint(100, 125, size=3)
 
     def get_params(self):
         scales = [self.scale for _ in range(self.max_iter)]

@@ -99,10 +99,11 @@ class CutMix:
 
 
 class Mosaic4:
-    def __init__(self, img_size=640):
+    def __init__(self, img_size=640, fill=114):
         self.name = __name__.split('.')[-1] + '.' + self.__class__.__name__
         self.img_size = img_size
         self.border = [img_size // 2, img_size // 2]
+        self.fill = fill
 
     def get_add_params(self, coors):
         return {self.name: dict(coors=coors)}
@@ -150,7 +151,7 @@ class Mosaic4:
 
     def apply_image_list(self, image_list, ret):
         s = self.img_size
-        img4 = np.full((s * 2, s * 2, image_list[0].shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
+        img4 = np.full((s * 2, s * 2, image_list[0].shape[2]), self.fill, dtype=np.uint8)  # base image with 4 tiles
         coors = self.parse_add_params(ret)
 
         for img, ((x1a, y1a, x2a, y2a), (x1b, y1b, x2b, y2b)) in zip(image_list, coors):

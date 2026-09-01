@@ -2,7 +2,7 @@ import pickle
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
-from typing import overload
+from typing import Optional, overload
 
 import numpy as np
 from tqdm import tqdm
@@ -41,7 +41,7 @@ class DataLoader:
     """
     default_set_type = [DataRegister.TRAIN, DataRegister.TEST]
     default_data_type = DataRegister.FULL
-    classes = []
+    classes: Optional
     dataset_info: dict
 
     def __init__(self, data_dir, verbose=True, stdout_method=print, **kwargs):
